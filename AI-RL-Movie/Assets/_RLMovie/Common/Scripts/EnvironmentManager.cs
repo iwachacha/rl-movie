@@ -12,8 +12,6 @@ namespace RLMovie.Common
         [Tooltip("環境エリアの半径（ランダム配置範囲）")]
         [SerializeField] private float areaRadius = 5f;
 
-        [Tooltip("地面の高さ")]
-        [SerializeField] private float groundLevel = 0f;
 
         [Tooltip("環境の境界（エージェントが落ちた判定用）")]
         [SerializeField] private float fallThreshold = -5f;

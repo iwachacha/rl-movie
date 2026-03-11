@@ -58,16 +58,19 @@ public class MyAgent : BaseRLAgent
 2. エージェントの動きと報酬が正しいか確認
 3. `TrainingVisualizer` を配置して確認
 
-## 6. Linux ビルド & Colab 学習
+## 6. Colab ビルド & 学習
 
-1. File > Build Settings > Linux
-2. ビルドを Google Drive にアップロード
-3. `Notebooks/rl_movie_training.ipynb` を開いて実行
-4. 学習済みモデル (.onnx) をダウンロード
+1. Unity メニュー **`RLMovie > Build for Colab (Current Scene)`** をクリック
+   - 自動で Linux ビルド → YAML コピー → ZIP パッケージング
+   - 出力先: `ColabBuilds/_ReadyToUpload/<シナリオ名>.zip`
+2. ZIP を Google Drive の `RL-Movie/Builds/` にアップロード
+3. `Notebooks/rl_movie_training.ipynb` を Colab で開く
+4. Step 0 の `SCENARIO_NAME` を変更してセルを上から順に実行
 
 ## 7. モデル適用 & 録画
 
-1. .onnx ファイルを `Assets/StreamingAssets/` に配置
-2. エージェントの `Behavior Parameters > Model` に設定
-3. `Behavior Type` を `Inference Only` に変更
+1. Google Drive の `RL-Movie/Models/` から .onnx をダウンロード
+2. Unity メニュー **`RLMovie > Import Trained Model`** をクリック
+   - StreamingAssets にコピー + Behavior Type を自動切替
+3. Inspector で Behavior Parameters > Model にファイルをドラッグ
 4. Unity Recorder で録画

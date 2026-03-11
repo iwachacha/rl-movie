@@ -5,6 +5,7 @@ using RLMovie.Common;
 using RLMovie.Environments.RollerBall;
 using Unity.MLAgents;
 using Unity.MLAgents.Policies;
+using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
 
 namespace RLMovie.Editor

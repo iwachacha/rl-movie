@@ -120,8 +120,20 @@ namespace RLMovie.Environments.RollerBall
         protected override void ProvideHeuristicInput(in ActionBuffers actionsOut)
         {
             var continuousActions = actionsOut.ContinuousActions;
-            continuousActions[0] = Input.GetAxis("Horizontal");
-            continuousActions[1] = Input.GetAxis("Vertical");
+            float moveX = 0f;
+            float moveZ = 0f;
+
+            var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            if (keyboard != null)
+            {
+                if (keyboard.upArrowKey.isPressed || keyboard.wKey.isPressed) moveZ = 1f;
+                if (keyboard.downArrowKey.isPressed || keyboard.sKey.isPressed) moveZ = -1f;
+                if (keyboard.rightArrowKey.isPressed || keyboard.dKey.isPressed) moveX = 1f;
+                if (keyboard.leftArrowKey.isPressed || keyboard.aKey.isPressed) moveX = -1f;
+            }
+
+            continuousActions[0] = moveX;
+            continuousActions[1] = moveZ;
         }
     }
 }

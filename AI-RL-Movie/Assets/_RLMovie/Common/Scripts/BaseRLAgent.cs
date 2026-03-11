@@ -39,8 +39,9 @@ namespace RLMovie.Common
 
         #region Unity Lifecycle
 
-        protected virtual void Awake()
+        protected override void Awake()
         {
+            base.Awake();
             _agentRenderer = GetComponentInChildren<Renderer>();
             if (_agentRenderer != null)
             {
