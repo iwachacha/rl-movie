@@ -1,0 +1,63 @@
+# ML-Agents トレーニング設定テンプレート
+# 新しいシナリオを作る際はこのファイルをコピーして編集してください。
+#
+# 使い方:
+#   mlagents-learn <config.yaml> --run-id=<実行名>
+#
+# Google Colab で実行する場合:
+#   !mlagents-learn /content/config.yaml --run-id=my_run --no-graphics
+
+behaviors:
+  # ここにエージェントのBehavior Name を記載
+  TemplateAgent:
+    # --- トレーナー設定 ---
+    trainer_type: ppo           # PPO (Proximal Policy Optimization)
+    
+    # --- ハイパーパラメータ ---
+    hyperparameters:
+      batch_size: 128           # ミニバッチサイズ（大きいほど安定、遅い）
+      buffer_size: 2048         # バッファサイズ（batch_size の倍数）
+      learning_rate: 3.0e-4     # 学習率
+      beta: 5.0e-3              # エントロピー正則化（探索促進）
+      epsilon: 0.2              # PPO クリップ範囲
+      lambd: 0.95               # GAE lambda
+      num_epoch: 3              # エポック数
+      learning_rate_schedule: linear  # 学習率スケジュール
+
+    # --- ネットワーク設定 ---
+    network_settings:
+      normalize: true           # 入力の正規化
+      hidden_units: 128         # 隠れ層のユニット数
+      num_layers: 2             # 隠れ層の数
+      vis_encode_type: simple   # 視覚エンコーダタイプ
+
+    # --- 報酬設定 ---
+    reward_signals:
+      extrinsic:
+        gamma: 0.99             # 割引率
+        strength: 1.0           # 報酬の強さ
+      # curiosity:              # 好奇心駆動報酬（探索が必要な場合にコメント解除）
+      #   gamma: 0.99
+      #   strength: 0.02
+      #   encoding_size: 256
+
+    # --- トレーニング制御 ---
+    max_steps: 500000           # 最大ステップ数（Colabなら50万〜100万推奨）
+    time_horizon: 64            # 報酬計算の時間範囲
+    summary_freq: 10000         # TensorBoard 記録頻度
+    keep_checkpoints: 5         # チェックポイント保持数
+    checkpoint_interval: 50000  # チェックポイント間隔
+
+# --- 環境設定 ---
+# environment_parameters:
+#   area_radius:
+#     curriculum:
+#       - name: SmallArea
+#         completion_criteria:
+#           measure: reward
+#           behavior: TemplateAgent
+#           min_lesson_length: 100
+#           threshold: 0.5
+#         value: 3.0
+#       - name: LargeArea
+#         value: 8.0
