@@ -54,3 +54,7 @@ __pycache__/
 
 # Notebooks output
 Notebooks/.ipynb_checkpoints/
+
+# Third Party Assets (too large for git)
+AI-RL-Movie/Assets/ThirdParty/
+AI-RL-Movie/Assets/ThirdParty.meta
