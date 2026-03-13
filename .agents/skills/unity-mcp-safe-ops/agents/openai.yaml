@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity MCP Safe Ops"
+  short_description: "Use Unity MCP safely for scene and prefab editing."
+  default_prompt: "Use $unity-mcp-safe-ops to make a Unity scene change safely through MCP."

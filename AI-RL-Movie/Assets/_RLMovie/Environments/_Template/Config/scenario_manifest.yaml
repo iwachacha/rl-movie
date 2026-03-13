@@ -1,0 +1,51 @@
+﻿# RL シナリオ契約テンプレート
+# 新しいシナリオを作る際はこのファイルをコピーして編集してください。
+
+scenario_name: Template
+scene_name: Template
+agent_class: TemplateAgent
+behavior_name: TemplateAgent
+learning_goal: "エージェントに学ばせたいことを 1 文で記述する"
+success_conditions:
+  - "成功条件を箇条書きで記述する"
+failure_conditions:
+  - "失敗条件を箇条書きで記述する"
+observation_contract:
+  vector_size: 0
+  items:
+    - "観測項目と次元を記述する"
+action_contract:
+  type: continuous
+  size: 0
+  mapping:
+    - "各アクションが何を意味するかを記述する"
+reward_rules:
+  terminal:
+    - "Success: +1.0"
+    - "Fail: -1.0"
+  dense:
+    - "中間報酬の考え方を記述する"
+  penalties:
+    - "ステップペナルティや逸脱ペナルティを記述する"
+randomization_knobs:
+  - name: "example_randomization"
+    purpose: "何を変えるノブか"
+    default: "0.0"
+difficulty_stages:
+  - name: Baseline
+    intent: "最初に通したい難易度"
+  - name: Hard
+    intent: "将来的に到達したい難易度"
+visual_theme:
+  style: "画作りの方向性"
+  readability: "学習時と録画時の視認性方針"
+camera_plan:
+  default_view: "通常のプレイ確認に使うカメラ"
+  recording_cuts:
+    - "録画時の主カット"
+acceptance_criteria:
+  - "Heuristic で最低限の動作確認が通る"
+  - "Validate Current Scenario が通る"
+  - "Inference Only で再生確認できる"
+baseline_run: ""
+spec_version: 1

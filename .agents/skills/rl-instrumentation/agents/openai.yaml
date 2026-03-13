@@ -1,0 +1,4 @@
+interface:
+  display_name: "RL Instrumentation"
+  short_description: "Add reward and episode diagnostics to RL scenarios."
+  default_prompt: "Use $rl-instrumentation to add minimal diagnostics for rewards, failures, and episode behavior."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Curriculum Randomization"
+  short_description: "Design curriculum and randomization for RL scenarios."
+  default_prompt: "Use $curriculum-randomization to improve curriculum and randomization for this scenario."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scenario Evaluate"
+  short_description: "Compare RL runs and choose which model to adopt."
+  default_prompt: "Use $scenario-evaluate to compare recent RL runs and recommend whether to adopt a model."
