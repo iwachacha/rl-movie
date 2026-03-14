@@ -1,0 +1,67 @@
+﻿# RL シナリオ契約: RollerBall
+
+scenario_name: RollerBall
+scene_name: RollerBall
+agent_class: RollerBallAgent
+behavior_name: RollerBallAgent
+learning_goal: "ボール型エージェントが落下せずにターゲットへ最短で到達する方策を学習する"
+success_conditions:
+  - "エージェントとターゲットの距離が goalDistance 未満になったら成功"
+failure_conditions:
+  - "EnvironmentManager の fallThreshold を下回ったら失敗"
+  - "envManager 未設定時は Y 座標が -1 未満になったら失敗"
+observation_contract:
+  vector_size: 13
+  items:
+    - "agent localPosition (3)"
+    - "target localPosition (3)"
+    - "agent rigidbody linearVelocity (3)"
+    - "normalized direction to target (3)"
+    - "distance to target (1)"
+action_contract:
+  type: continuous
+  size: 2
+  mapping:
+    - "index 0: moveX"
+    - "index 1: moveZ"
+reward_rules:
+  terminal:
+    - "Success: +1.0"
+    - "Fail: -1.0"
+  dense:
+    - "distanceReward: -distToTarget * 0.001"
+  penalties:
+    - "step penalty: -0.0005"
+randomization_knobs:
+  - name: envManager.randomizePositions
+    purpose: "開始位置とターゲット位置のランダム化を有効にする"
+    default: "true"
+  - name: envManager.randomizationStrength
+    purpose: "ランダム化範囲の強さ"
+    default: "0.5"
+  - name: moveForce
+    purpose: "移動入力の効き方"
+    default: "1.0"
+difficulty_stages:
+  - name: Baseline
+    intent: "平坦な床と単純なターゲット到達で基本方策を学ばせる"
+  - name: WiderArena
+    intent: "ランダム化範囲を広げて探索を強化する"
+  - name: HazardVariant
+    intent: "障害物や落下リスクを増やして録画映えする挙動へ拡張する"
+visual_theme:
+  style: "青いエージェント、発光する緑ターゲット、暗めの床で視認性を高く保つ"
+  readability: "成功と失敗の色変化、シンプルな背景、録画時に UI 非表示でも状況が伝わる構図を優先する"
+camera_plan:
+  default_view: "俯瞰カメラでエージェントとターゲットを同時に見せる"
+  recording_cuts:
+    - "導入: 俯瞰で全体配置を見せる"
+    - "本編: エージェント追従または固定斜め上カメラで移動を見せる"
+    - "締め: 成功直前か到達瞬間を近めに見せる"
+acceptance_criteria:
+  - "Heuristic で WASD 操作によりターゲット到達を再現できる"
+  - "RLMovie > Validate Current Scenario が通る"
+  - "Build for Colab 後に Config 内へ training YAML と manifest が同梱される"
+  - "Inference Only で 1 エピソード以上の自然な再生確認ができる"
+baseline_run: ""
+spec_version: 1

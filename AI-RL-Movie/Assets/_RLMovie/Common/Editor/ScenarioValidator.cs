@@ -125,6 +125,7 @@ namespace RLMovie.Editor
 
             ValidateTrainingVisualizers(agents, report);
             ValidateRecordingHelpers(report);
+            ValidateGoldenSpine(agents, report);
 
             LogReport(report, logToConsole);
             return report;
@@ -277,6 +278,150 @@ namespace RLMovie.Editor
                 if (enableCameraSwitching && cameraCount < 2)
                 {
                     report.AddWarning($"{helper.gameObject.name}: enableCameraSwitching が有効ですが cameraPositions が 2 個未満です。");
+                }
+            }
+        }
+
+        private static void ValidateGoldenSpine(RLMovie.Common.BaseRLAgent[] agents, ScenarioValidationReport report)
+        {
+            var spines = UnityEngine.Object.FindObjectsByType<RLMovie.Common.ScenarioGoldenSpine>(FindObjectsSortMode.None);
+            if (spines.Length == 0)
+            {
+                report.AddWarning("ScenarioGoldenSpine がありません。新規シナリオでは Golden Spine の利用を推奨します。");
+                return;
+            }
+
+            if (spines.Length > 1)
+            {
+                report.AddError("ScenarioGoldenSpine は 1 シーンにつき 1 つにしてください。");
+                return;
+            }
+
+            var spine = spines[0];
+            var serializedObject = new SerializedObject(spine);
+
+            var environmentRoot = serializedObject.FindProperty("environmentRoot")?.objectReferenceValue as Transform;
+            var primaryAgent = serializedObject.FindProperty("primaryAgent")?.objectReferenceValue as RLMovie.Common.BaseRLAgent;
+            var primaryGoal = serializedObject.FindProperty("primaryGoal")?.objectReferenceValue as Transform;
+            var environmentManager = serializedObject.FindProperty("environmentManager")?.objectReferenceValue as RLMovie.Common.EnvironmentManager;
+            var trainingVisualizer = serializedObject.FindProperty("trainingVisualizer")?.objectReferenceValue as RLMovie.Common.TrainingVisualizer;
+            var recordingHelper = serializedObject.FindProperty("recordingHelper")?.objectReferenceValue as RLMovie.Common.RecordingHelper;
+            var defaultCameraView = serializedObject.FindProperty("defaultCameraView")?.objectReferenceValue as Transform;
+            var recordingCameraViews = serializedObject.FindProperty("recordingCameraViews");
+
+            if (environmentRoot == null)
+            {
+                report.AddError("ScenarioGoldenSpine: environmentRoot が未設定です。");
+            }
+            else if (!string.Equals(environmentRoot.name, "EnvironmentRoot", StringComparison.Ordinal))
+            {
+                report.AddWarning($"ScenarioGoldenSpine: environmentRoot 名は `EnvironmentRoot` を推奨します。現在値: `{environmentRoot.name}`");
+            }
+            else if (environmentRoot != spine.transform)
+            {
+                report.AddWarning("ScenarioGoldenSpine: environmentRoot は ScenarioGoldenSpine を持つ GameObject 自身を参照することを推奨します。");
+            }
+
+            if (primaryAgent == null)
+            {
+                report.AddError("ScenarioGoldenSpine: primaryAgent が未設定です。");
+            }
+            else if (!agents.Contains(primaryAgent))
+            {
+                report.AddError("ScenarioGoldenSpine: primaryAgent が現在シーンの Agent 一覧に含まれていません。");
+            }
+            else if (environmentRoot != null && !primaryAgent.transform.IsChildOf(environmentRoot))
+            {
+                report.AddWarning("ScenarioGoldenSpine: primaryAgent が environmentRoot 配下にありません。");
+            }
+
+            if (primaryGoal == null)
+            {
+                report.AddError("ScenarioGoldenSpine: primaryGoal が未設定です。");
+            }
+            else if (environmentRoot != null && !primaryGoal.IsChildOf(environmentRoot))
+            {
+                report.AddWarning("ScenarioGoldenSpine: primaryGoal が environmentRoot 配下にありません。");
+            }
+
+            if (environmentManager == null)
+            {
+                report.AddError("ScenarioGoldenSpine: environmentManager が未設定です。");
+            }
+
+            if (trainingVisualizer == null)
+            {
+                report.AddError("ScenarioGoldenSpine: trainingVisualizer が未設定です。");
+            }
+            else
+            {
+                var visualizerSo = new SerializedObject(trainingVisualizer);
+                var targetAgent = visualizerSo.FindProperty("targetAgent")?.objectReferenceValue as RLMovie.Common.BaseRLAgent;
+                if (primaryAgent != null && targetAgent != primaryAgent)
+                {
+                    report.AddError("ScenarioGoldenSpine: trainingVisualizer.targetAgent が primaryAgent と一致しません。");
+                }
+            }
+
+            if (recordingHelper == null)
+            {
+                report.AddError("ScenarioGoldenSpine: recordingHelper が未設定です。");
+            }
+            else
+            {
+                var helperSo = new SerializedObject(recordingHelper);
+                var hideUiWhenRecording = helperSo.FindProperty("hideUIWhenRecording");
+                var helperCameraPositions = helperSo.FindProperty("cameraPositions");
+
+                if (defaultCameraView == null)
+                {
+                    report.AddWarning("ScenarioGoldenSpine: defaultCameraView が未設定です。");
+                }
+                else if (environmentRoot != null && !defaultCameraView.IsChildOf(environmentRoot))
+                {
+                    report.AddWarning("ScenarioGoldenSpine: defaultCameraView が environmentRoot 配下にありません。");
+                }
+
+                int spineCameraCount = recordingCameraViews != null ? recordingCameraViews.arraySize : 0;
+                if (spineCameraCount == 0)
+                {
+                    report.AddWarning("ScenarioGoldenSpine: recordingCameraViews が空です。録画カメラ基準点の設定を推奨します。");
+                }
+
+                if (helperCameraPositions != null && spineCameraCount != helperCameraPositions.arraySize)
+                {
+                    report.AddWarning("ScenarioGoldenSpine: recordingCameraViews と RecordingHelper.cameraPositions の数が一致しません。");
+                }
+
+                if (hideUiWhenRecording != null && !hideUiWhenRecording.boolValue)
+                {
+                    report.AddWarning("ScenarioGoldenSpine: RecordingHelper.hideUIWhenRecording は true を推奨します。");
+                }
+
+                int cameraCountToCheck = helperCameraPositions != null
+                    ? Math.Min(spineCameraCount, helperCameraPositions.arraySize)
+                    : spineCameraCount;
+
+                for (int i = 0; i < cameraCountToCheck; i++)
+                {
+                    var spineCamera = recordingCameraViews.GetArrayElementAtIndex(i).objectReferenceValue as Transform;
+                    var helperCamera = helperCameraPositions?.GetArrayElementAtIndex(i).objectReferenceValue as Transform;
+
+                    if (spineCamera == null)
+                    {
+                        report.AddWarning($"ScenarioGoldenSpine: recordingCameraViews[{i}] が未設定です。");
+                        continue;
+                    }
+
+                    if (environmentRoot != null && !spineCamera.IsChildOf(environmentRoot))
+                    {
+                        report.AddWarning($"ScenarioGoldenSpine: recordingCameraViews[{i}] が environmentRoot 配下にありません。");
+                    }
+
+                    if (helperCamera != spineCamera)
+                    {
+                        report.AddWarning($"ScenarioGoldenSpine: recordingCameraViews[{i}] と RecordingHelper.cameraPositions[{i}] が一致しません。");
+                    }
                 }
             }
         }

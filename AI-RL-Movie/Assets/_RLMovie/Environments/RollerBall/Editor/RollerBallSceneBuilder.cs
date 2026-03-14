@@ -1,210 +1,265 @@
-using UnityEngine;
-using UnityEditor;
-using UnityEditor.SceneManagement;
 using RLMovie.Common;
 using RLMovie.Environments.RollerBall;
 using Unity.MLAgents;
-using Unity.MLAgents.Policies;
 using Unity.MLAgents.Actuators;
-using Unity.MLAgents.Sensors;
+using Unity.MLAgents.Policies;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
 
 namespace RLMovie.Editor
 {
     /// <summary>
-    /// RollerBall シーンを自動構築するエディタメニュー。
-    /// メニュー: RLMovie > Create RollerBall Scene
+    /// Builds the RollerBall sample scene with the shared Golden Spine wiring.
     /// </summary>
     public static class RollerBallSceneBuilder
     {
+        private const string ScenePath = "Assets/_RLMovie/Environments/RollerBall/Scenes/RollerBall.unity";
+        private const string MaterialsFolder = "Assets/_RLMovie/Environments/RollerBall/Materials";
+
         [MenuItem("RLMovie/Create RollerBall Scene")]
         public static void CreateScene()
         {
-            // 新規シーンを作成
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            CreateSceneSilently();
 
-            // --- 環境ルート ---
-            GameObject envRoot = new GameObject("RollerBallEnvironment");
-
-            // --- 床 ---
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            floor.name = "Floor";
-            floor.transform.SetParent(envRoot.transform);
-            floor.transform.localPosition = Vector3.zero;
-            floor.transform.localScale = new Vector3(1f, 1f, 1f);
-            floor.AddComponent<FloorVisual>();
-
-            // 床のマテリアル（ダークカラー）
-            var floorRenderer = floor.GetComponent<Renderer>();
-            var floorMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            floorMat.SetColor("_BaseColor", new Color(0.15f, 0.15f, 0.2f));
-            floorMat.SetFloat("_Smoothness", 0.8f);
-            floorMat.SetFloat("_Metallic", 0.3f);
-            floorRenderer.material = floorMat;
-
-            // --- 壁 ---
-            CreateWall(envRoot.transform, "WallN", new Vector3(0, 0.5f, 5f), new Vector3(10f, 1f, 0.2f));
-            CreateWall(envRoot.transform, "WallS", new Vector3(0, 0.5f, -5f), new Vector3(10f, 1f, 0.2f));
-            CreateWall(envRoot.transform, "WallE", new Vector3(5f, 0.5f, 0), new Vector3(0.2f, 1f, 10f));
-            CreateWall(envRoot.transform, "WallW", new Vector3(-5f, 0.5f, 0), new Vector3(0.2f, 1f, 10f));
-
-            // --- エージェント（ボール） ---
-            GameObject agent = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            agent.name = "RollerAgent";
-            agent.transform.SetParent(envRoot.transform);
-            agent.transform.localPosition = new Vector3(0, 0.5f, 0);
-
-            // エージェントのマテリアル（鮮やかなブルー）
-            var agentRenderer = agent.GetComponent<Renderer>();
-            var agentMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            agentMat.SetColor("_BaseColor", new Color(0.2f, 0.4f, 1f));
-            agentMat.SetFloat("_Smoothness", 0.9f);
-            agentMat.SetFloat("_Metallic", 0.5f);
-            agentMat.EnableKeyword("_EMISSION");
-            agentMat.SetColor("_EmissionColor", new Color(0.1f, 0.2f, 0.5f) * 1.5f);
-            agentRenderer.material = agentMat;
-
-            // Rigidbody
-            var rb = agent.AddComponent<Rigidbody>();
-            rb.mass = 1f;
-            rb.angularDamping = 0.5f;
-
-            // ML-Agents コンポーネント
-            var rollerAgent = agent.AddComponent<RollerBallAgent>();
-            var decisionRequester = agent.AddComponent<DecisionRequester>();
-            decisionRequester.DecisionPeriod = 10;
-
-            // BehaviorParameters の設定
-            var behaviorParams = agent.GetComponent<BehaviorParameters>();
-            if (behaviorParams != null)
-            {
-                behaviorParams.BehaviorName = "RollerBallAgent";
-                behaviorParams.BehaviorType = BehaviorType.HeuristicOnly;
-
-                var brainParams = behaviorParams.BrainParameters;
-                brainParams.VectorObservationSize = 13;
-                brainParams.ActionSpec = ActionSpec.MakeContinuous(2);
-            }
-
-            // --- ターゲット ---
-            GameObject target = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            target.name = "Target";
-            target.transform.SetParent(envRoot.transform);
-            target.transform.localPosition = new Vector3(3f, 0.5f, 3f);
-            target.transform.localScale = new Vector3(0.8f, 0.8f, 0.8f);
-
-            // コライダーを削除（物理衝突不要）
-            Object.DestroyImmediate(target.GetComponent<BoxCollider>());
-
-            // ターゲットのマテリアル（グリーンのグロー）
-            var targetRenderer = target.GetComponent<Renderer>();
-            var targetMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            targetMat.SetColor("_BaseColor", new Color(0.2f, 1f, 0.4f));
-            targetMat.SetFloat("_Smoothness", 0.9f);
-            targetMat.EnableKeyword("_EMISSION");
-            targetMat.SetColor("_EmissionColor", new Color(0.2f, 1f, 0.4f) * 2f);
-            targetRenderer.material = targetMat;
-
-            // TargetVisual
-            target.AddComponent<TargetVisual>();
-
-            // --- 環境マネージャー ---
-            GameObject envMgrObj = new GameObject("EnvironmentManager");
-            envMgrObj.transform.SetParent(envRoot.transform);
-            envMgrObj.AddComponent<EnvironmentManager>();
-
-            // --- RollerBallAgent の参照をセット ---
-            SerializedObject so = new SerializedObject(rollerAgent);
-            so.FindProperty("target").objectReferenceValue = target.transform;
-            so.FindProperty("envManager").objectReferenceValue = envMgrObj.GetComponent<EnvironmentManager>();
-            so.FindProperty("moveForce").floatValue = 1.0f;
-            so.FindProperty("goalDistance").floatValue = 1.42f;
-            so.FindProperty("startPosition").vector3Value = new Vector3(0, 0.5f, 0);
-            so.ApplyModifiedProperties();
-
-            // --- カメラ設定 ---
-            Camera mainCam = Camera.main;
-            if (mainCam != null)
-            {
-                mainCam.transform.position = new Vector3(0, 12f, -8f);
-                mainCam.transform.rotation = Quaternion.Euler(55f, 0, 0);
-                mainCam.backgroundColor = new Color(0.05f, 0.05f, 0.1f);
-            }
-
-            // --- ライティング ---
-            var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
-            foreach (var light in lights)
-            {
-                if (light.type == LightType.Directional)
-                {
-                    light.color = new Color(1f, 0.95f, 0.9f);
-                    light.intensity = 1.2f;
-                    light.transform.rotation = Quaternion.Euler(50f, -30f, 0);
-                }
-            }
-
-            // --- Training Visualizer ---
-            GameObject vizObj = new GameObject("TrainingVisualizer");
-            var viz = vizObj.AddComponent<TrainingVisualizer>();
-            SerializedObject vizSo = new SerializedObject(viz);
-            vizSo.FindProperty("targetAgent").objectReferenceValue = rollerAgent;
-            vizSo.ApplyModifiedProperties();
-
-            // --- Recording Helper ---
-            GameObject recObj = new GameObject("RecordingHelper");
-            recObj.AddComponent<RecordingHelper>();
-
-            // --- シーンを保存 ---
-            string scenePath = "Assets/_RLMovie/Environments/RollerBall/Scenes/RollerBall.unity";
-            // フォルダ作成
-            if (!AssetDatabase.IsValidFolder("Assets/_RLMovie/Environments/RollerBall/Scenes"))
-            {
-                // パスのフォルダが存在するか確認して作成
-                if (!AssetDatabase.IsValidFolder("Assets/_RLMovie"))
-                    AssetDatabase.CreateFolder("Assets", "_RLMovie");
-                if (!AssetDatabase.IsValidFolder("Assets/_RLMovie/Environments"))
-                    AssetDatabase.CreateFolder("Assets/_RLMovie", "Environments");
-                if (!AssetDatabase.IsValidFolder("Assets/_RLMovie/Environments/RollerBall"))
-                    AssetDatabase.CreateFolder("Assets/_RLMovie/Environments", "RollerBall");
-                if (!AssetDatabase.IsValidFolder("Assets/_RLMovie/Environments/RollerBall/Scenes"))
-                    AssetDatabase.CreateFolder("Assets/_RLMovie/Environments/RollerBall", "Scenes");
-            }
-
-            EditorSceneManager.SaveScene(scene, scenePath);
-
-            // マテリアルを保存
-            string matFolder = "Assets/_RLMovie/Environments/RollerBall/Materials";
-            if (!AssetDatabase.IsValidFolder(matFolder))
-            {
-                if (!AssetDatabase.IsValidFolder("Assets/_RLMovie/Environments/RollerBall/Materials"))
-                    AssetDatabase.CreateFolder("Assets/_RLMovie/Environments/RollerBall", "Materials");
-            }
-            AssetDatabase.CreateAsset(floorMat, matFolder + "/FloorMat.mat");
-            AssetDatabase.CreateAsset(agentMat, matFolder + "/AgentMat.mat");
-            AssetDatabase.CreateAsset(targetMat, matFolder + "/TargetMat.mat");
-
-            // 再保存
-            EditorSceneManager.SaveScene(scene, scenePath);
-
-            Debug.Log("🎱 RollerBall scene created successfully at: " + scenePath);
-            EditorUtility.DisplayDialog("RollerBall Scene",
-                "RollerBall シーンを作成しました！\n\n" +
-                "Play ボタンを押して矢印キーでエージェントを操作できます。",
+            EditorUtility.DisplayDialog(
+                "RollerBall Scene",
+                "RollerBall scene created.\n\nUse Play mode to verify heuristic movement before training.",
                 "OK");
         }
 
-        private static void CreateWall(Transform parent, string name, Vector3 position, Vector3 scale)
+        public static string CreateSceneSilently()
+        {
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+            GameObject environmentRoot = new GameObject("EnvironmentRoot");
+            var goldenSpine = environmentRoot.AddComponent<ScenarioGoldenSpine>();
+
+            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            floor.name = "Floor";
+            floor.transform.SetParent(environmentRoot.transform);
+            floor.transform.localPosition = Vector3.zero;
+            floor.transform.localScale = Vector3.one;
+            floor.AddComponent<FloorVisual>();
+
+            var floorMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            floorMaterial.SetColor("_BaseColor", new Color(0.15f, 0.15f, 0.2f));
+            floorMaterial.SetFloat("_Smoothness", 0.8f);
+            floorMaterial.SetFloat("_Metallic", 0.3f);
+            var floorRenderer = floor.GetComponent<Renderer>();
+            floorRenderer.material = floorMaterial;
+
+            var wallMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            wallMaterial.SetColor("_BaseColor", new Color(0.3f, 0.3f, 0.35f));
+            wallMaterial.SetFloat("_Smoothness", 0.5f);
+
+            var wallRenderers = new[]
+            {
+                CreateWall(environmentRoot.transform, wallMaterial, "WallN", new Vector3(0f, 0.5f, 5f), new Vector3(10f, 1f, 0.2f)),
+                CreateWall(environmentRoot.transform, wallMaterial, "WallS", new Vector3(0f, 0.5f, -5f), new Vector3(10f, 1f, 0.2f)),
+                CreateWall(environmentRoot.transform, wallMaterial, "WallE", new Vector3(5f, 0.5f, 0f), new Vector3(0.2f, 1f, 10f)),
+                CreateWall(environmentRoot.transform, wallMaterial, "WallW", new Vector3(-5f, 0.5f, 0f), new Vector3(0.2f, 1f, 10f))
+            };
+
+            GameObject agentObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            agentObject.name = "RollerAgent";
+            agentObject.transform.SetParent(environmentRoot.transform);
+            agentObject.transform.localPosition = new Vector3(0f, 0.5f, 0f);
+
+            var agentMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            agentMaterial.SetColor("_BaseColor", new Color(0.2f, 0.4f, 1f));
+            agentMaterial.SetFloat("_Smoothness", 0.9f);
+            agentMaterial.SetFloat("_Metallic", 0.5f);
+            agentMaterial.EnableKeyword("_EMISSION");
+            agentMaterial.SetColor("_EmissionColor", new Color(0.1f, 0.2f, 0.5f) * 1.5f);
+            var agentRenderer = agentObject.GetComponent<Renderer>();
+            agentRenderer.material = agentMaterial;
+
+            var rigidbody = agentObject.AddComponent<Rigidbody>();
+            rigidbody.mass = 1f;
+            rigidbody.angularDamping = 0.5f;
+
+            var rollerAgent = agentObject.AddComponent<RollerBallAgent>();
+            var decisionRequester = agentObject.AddComponent<DecisionRequester>();
+            decisionRequester.DecisionPeriod = 10;
+
+            var behaviorParameters = agentObject.GetComponent<BehaviorParameters>();
+            if (behaviorParameters == null)
+            {
+                behaviorParameters = agentObject.AddComponent<BehaviorParameters>();
+            }
+
+            behaviorParameters.BehaviorName = nameof(RollerBallAgent);
+            behaviorParameters.BehaviorType = BehaviorType.HeuristicOnly;
+            behaviorParameters.BrainParameters.VectorObservationSize = 13;
+            behaviorParameters.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(2);
+
+            GameObject targetObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            targetObject.name = "Target";
+            targetObject.transform.SetParent(environmentRoot.transform);
+            targetObject.transform.localPosition = new Vector3(3f, 0.5f, 3f);
+            targetObject.transform.localScale = new Vector3(0.8f, 0.8f, 0.8f);
+            Object.DestroyImmediate(targetObject.GetComponent<BoxCollider>());
+
+            var targetMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            targetMaterial.SetColor("_BaseColor", new Color(0.2f, 1f, 0.4f));
+            targetMaterial.SetFloat("_Smoothness", 0.9f);
+            targetMaterial.EnableKeyword("_EMISSION");
+            targetMaterial.SetColor("_EmissionColor", new Color(0.2f, 1f, 0.4f) * 2f);
+            var targetRenderer = targetObject.GetComponent<Renderer>();
+            targetRenderer.material = targetMaterial;
+            targetObject.AddComponent<TargetVisual>();
+
+            GameObject environmentManagerObject = new GameObject("EnvironmentManager");
+            environmentManagerObject.transform.SetParent(environmentRoot.transform);
+            var environmentManager = environmentManagerObject.AddComponent<EnvironmentManager>();
+
+            var agentSo = new SerializedObject(rollerAgent);
+            agentSo.FindProperty("target").objectReferenceValue = targetObject.transform;
+            agentSo.FindProperty("envManager").objectReferenceValue = environmentManager;
+            agentSo.FindProperty("moveForce").floatValue = 1.0f;
+            agentSo.FindProperty("goalDistance").floatValue = 1.42f;
+            agentSo.FindProperty("startPosition").vector3Value = new Vector3(0f, 0.5f, 0f);
+            agentSo.ApplyModifiedProperties();
+
+            Transform defaultView = null;
+            Transform recordLeft = null;
+            Transform recordRight = null;
+
+            Camera mainCamera = Camera.main;
+            if (mainCamera != null)
+            {
+                mainCamera.transform.position = new Vector3(0f, 12f, -8f);
+                mainCamera.transform.rotation = Quaternion.Euler(55f, 0f, 0f);
+                mainCamera.backgroundColor = new Color(0.05f, 0.05f, 0.1f);
+
+                GameObject cameraRig = new GameObject("CameraRig");
+                cameraRig.transform.SetParent(environmentRoot.transform);
+                defaultView = CreateCameraAnchor(cameraRig.transform, "DefaultView", mainCamera.transform.position, mainCamera.transform.rotation);
+                recordLeft = CreateCameraAnchor(cameraRig.transform, "RecordWideLeft", new Vector3(-7f, 7f, -7f), Quaternion.Euler(35f, 45f, 0f));
+                recordRight = CreateCameraAnchor(cameraRig.transform, "RecordWideRight", new Vector3(7f, 7f, -7f), Quaternion.Euler(35f, -45f, 0f));
+            }
+
+            foreach (var light in Object.FindObjectsByType<Light>(FindObjectsSortMode.None))
+            {
+                if (light.type != LightType.Directional)
+                {
+                    continue;
+                }
+
+                light.color = new Color(1f, 0.95f, 0.9f);
+                light.intensity = 1.2f;
+                light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
+            }
+
+            GameObject visualizerObject = new GameObject("TrainingVisualizer");
+            visualizerObject.transform.SetParent(environmentRoot.transform);
+            var visualizer = visualizerObject.AddComponent<TrainingVisualizer>();
+            var visualizerSo = new SerializedObject(visualizer);
+            visualizerSo.FindProperty("targetAgent").objectReferenceValue = rollerAgent;
+            visualizerSo.ApplyModifiedProperties();
+
+            GameObject recordingObject = new GameObject("RecordingHelper");
+            recordingObject.transform.SetParent(environmentRoot.transform);
+            var recordingHelper = recordingObject.AddComponent<RecordingHelper>();
+            var recordingSo = new SerializedObject(recordingHelper);
+            var cameraPositions = recordingSo.FindProperty("cameraPositions");
+            cameraPositions.arraySize = 2;
+            cameraPositions.GetArrayElementAtIndex(0).objectReferenceValue = recordLeft;
+            cameraPositions.GetArrayElementAtIndex(1).objectReferenceValue = recordRight;
+            recordingSo.FindProperty("enableCameraSwitching").boolValue = true;
+            recordingSo.FindProperty("hideUIWhenRecording").boolValue = true;
+            recordingSo.ApplyModifiedProperties();
+
+            var spineSo = new SerializedObject(goldenSpine);
+            spineSo.FindProperty("environmentRoot").objectReferenceValue = environmentRoot.transform;
+            spineSo.FindProperty("primaryAgent").objectReferenceValue = rollerAgent;
+            spineSo.FindProperty("primaryGoal").objectReferenceValue = targetObject.transform;
+            spineSo.FindProperty("environmentManager").objectReferenceValue = environmentManager;
+            spineSo.FindProperty("trainingVisualizer").objectReferenceValue = visualizer;
+            spineSo.FindProperty("recordingHelper").objectReferenceValue = recordingHelper;
+            spineSo.FindProperty("defaultCameraView").objectReferenceValue = defaultView;
+            var recordingViews = spineSo.FindProperty("recordingCameraViews");
+            recordingViews.arraySize = 2;
+            recordingViews.GetArrayElementAtIndex(0).objectReferenceValue = recordLeft;
+            recordingViews.GetArrayElementAtIndex(1).objectReferenceValue = recordRight;
+            spineSo.ApplyModifiedProperties();
+
+            EnsureAssetFolder("Assets/_RLMovie");
+            EnsureAssetFolder("Assets/_RLMovie/Environments");
+            EnsureAssetFolder("Assets/_RLMovie/Environments/RollerBall");
+            EnsureAssetFolder("Assets/_RLMovie/Environments/RollerBall/Scenes");
+            EnsureAssetFolder(MaterialsFolder);
+
+            EditorSceneManager.SaveScene(scene, ScenePath);
+
+            floorMaterial = CreateOrReplaceAsset(floorMaterial, $"{MaterialsFolder}/FloorMat.mat");
+            wallMaterial = CreateOrReplaceAsset(wallMaterial, $"{MaterialsFolder}/WallMat.mat");
+            agentMaterial = CreateOrReplaceAsset(agentMaterial, $"{MaterialsFolder}/AgentMat.mat");
+            targetMaterial = CreateOrReplaceAsset(targetMaterial, $"{MaterialsFolder}/TargetMat.mat");
+            floorRenderer.sharedMaterial = floorMaterial;
+            agentRenderer.sharedMaterial = agentMaterial;
+            targetRenderer.sharedMaterial = targetMaterial;
+            foreach (var wallRenderer in wallRenderers)
+            {
+                wallRenderer.sharedMaterial = wallMaterial;
+            }
+            AssetDatabase.SaveAssets();
+            EditorSceneManager.SaveScene(scene, ScenePath);
+
+            Debug.Log($"RollerBall scene created successfully at: {ScenePath}");
+            return ScenePath;
+        }
+
+        private static Renderer CreateWall(Transform parent, Material wallMaterial, string name, Vector3 position, Vector3 scale)
         {
             GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
             wall.name = name;
             wall.transform.SetParent(parent);
             wall.transform.localPosition = position;
             wall.transform.localScale = scale;
-
             var wallRenderer = wall.GetComponent<Renderer>();
-            var wallMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            wallMat.SetColor("_BaseColor", new Color(0.3f, 0.3f, 0.35f));
-            wallMat.SetFloat("_Smoothness", 0.5f);
-            wallRenderer.material = wallMat;
+            wallRenderer.material = wallMaterial;
+            return wallRenderer;
+        }
+
+        private static Transform CreateCameraAnchor(Transform parent, string name, Vector3 position, Quaternion rotation)
+        {
+            GameObject anchor = new GameObject(name);
+            anchor.transform.SetParent(parent);
+            anchor.transform.position = position;
+            anchor.transform.rotation = rotation;
+            return anchor.transform;
+        }
+
+        private static Material CreateOrReplaceAsset(Material material, string assetPath)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(assetPath);
+            if (existing != null)
+            {
+                EditorUtility.CopySerialized(material, existing);
+                Object.DestroyImmediate(material);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
+
+            AssetDatabase.CreateAsset(material, assetPath);
+            return material;
+        }
+
+        private static void EnsureAssetFolder(string assetPath)
+        {
+            if (AssetDatabase.IsValidFolder(assetPath))
+            {
+                return;
+            }
+
+            int separator = assetPath.LastIndexOf('/');
+            string parentPath = assetPath.Substring(0, separator);
+            string folderName = assetPath.Substring(separator + 1);
+
+            EnsureAssetFolder(parentPath);
+            AssetDatabase.CreateFolder(parentPath, folderName);
         }
     }
 }

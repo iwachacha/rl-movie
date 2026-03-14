@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine.Rendering;
 
 namespace RLMovie.Common
 {
@@ -30,6 +31,7 @@ namespace RLMovie.Common
         private readonly float graphHeight = 100f;
 
         private Texture2D _whiteTexture;
+        private bool _runtimeUIEnabled = true;
 
         private Texture2D WhiteTexture
         {
@@ -45,8 +47,18 @@ namespace RLMovie.Common
             }
         }
 
+        private void Awake()
+        {
+            _runtimeUIEnabled = !IsHeadlessRuntime();
+            if (!_runtimeUIEnabled)
+            {
+                enabled = false;
+            }
+        }
+
         private void Update()
         {
+            if (!_runtimeUIEnabled) return;
             if (targetAgent == null) return;
 
             // 新しいエピソードが完了したらグラフにデータ追加
@@ -69,7 +81,7 @@ namespace RLMovie.Common
 
         private void OnGUI()
         {
-            if (!showUI || targetAgent == null) return;
+            if (!_runtimeUIEnabled || !showUI || targetAgent == null) return;
 
             float x = Screen.width - panelWidth - panelMargin;
             float y = panelMargin;
@@ -172,6 +184,11 @@ namespace RLMovie.Common
             GUI.matrix = matrixBackup;
 
             GUI.color = prev;
+        }
+
+        private static bool IsHeadlessRuntime()
+        {
+            return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
         }
     }
 }

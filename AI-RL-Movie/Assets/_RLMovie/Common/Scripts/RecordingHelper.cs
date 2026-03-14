@@ -3,16 +3,16 @@ using UnityEngine;
 namespace RLMovie.Common
 {
     /// <summary>
-    /// 録画関連のヘルパー機能。
-    /// Unity Recorder と組み合わせて使用。
+    /// Runtime helper for short debug capture sessions.
+    /// Works with Unity Recorder, but can also be toggled manually during Play mode.
     /// </summary>
     public class RecordingHelper : MonoBehaviour
     {
         [Header("=== Recording Settings ===")]
-        [Tooltip("録画中にUIを非表示にするか")]
+        [Tooltip("Hide training UI while a debug recording session is active.")]
         [SerializeField] private bool hideUIWhenRecording = false;
 
-        [Tooltip("録画用のカメラ切替を有効にするか")]
+        [Tooltip("Cycle through the recording camera anchors while recording is active.")]
         [SerializeField] private bool enableCameraSwitching = true;
 
         [Header("=== Camera Presets ===")]
@@ -20,18 +20,32 @@ namespace RLMovie.Common
 
         [SerializeField] private float cameraSwitchInterval = 10f;
 
+        [Header("=== Debug Controls ===")]
+        [Tooltip("Enable simple Play mode hotkeys for short debug recordings.")]
+        [SerializeField] private bool enableDebugHotkeys = true;
+
+        [SerializeField] private KeyCode toggleRecordingKey = KeyCode.F8;
+
+        [SerializeField] private KeyCode resetToDefaultViewKey = KeyCode.F7;
+
+        [SerializeField] private KeyCode nextCameraKey = KeyCode.F9;
+
         private Camera _mainCamera;
-        private int _currentCamIdx = 0;
-        private float _switchTimer = 0f;
-        private bool _isRecording = false;
+        private ScenarioGoldenSpine _goldenSpine;
+        private int _currentCamIdx;
+        private float _switchTimer;
+        private bool _isRecording;
+        private bool _loggedDebugHotkeys;
 
         private void Awake()
         {
-            _mainCamera = Camera.main;
+            CacheSceneReferences();
         }
 
         private void Update()
         {
+            HandleDebugHotkeys();
+
             if (!enableCameraSwitching || !_isRecording) return;
             if (cameraPositions == null || cameraPositions.Length <= 1) return;
 
@@ -43,25 +57,31 @@ namespace RLMovie.Common
             }
         }
 
-        /// <summary>録画開始時に呼ぶ</summary>
         public void OnRecordingStart()
         {
+            CacheSceneReferences();
+
             _isRecording = true;
             _switchTimer = 0f;
             _currentCamIdx = 0;
 
-            if (hideUIWhenRecording)
+            if (cameraPositions != null && cameraPositions.Length > 0)
             {
-                // TrainingVisualizer などのUIを無効にする
-                var visualizers = FindObjectsByType<TrainingVisualizer>(FindObjectsSortMode.None);
-                foreach (var v in visualizers)
-                    v.enabled = false;
+                ApplyCamera(cameraPositions[0]);
             }
 
-            Debug.Log("[RecordingHelper] 🎬 Recording started");
+            if (hideUIWhenRecording)
+            {
+                var visualizers = FindObjectsByType<TrainingVisualizer>(FindObjectsSortMode.None);
+                foreach (var visualizer in visualizers)
+                {
+                    visualizer.enabled = false;
+                }
+            }
+
+            Debug.Log("[RecordingHelper] Recording started");
         }
 
-        /// <summary>録画終了時に呼ぶ</summary>
         public void OnRecordingStop()
         {
             _isRecording = false;
@@ -69,34 +89,102 @@ namespace RLMovie.Common
             if (hideUIWhenRecording)
             {
                 var visualizers = FindObjectsByType<TrainingVisualizer>(FindObjectsSortMode.None);
-                foreach (var v in visualizers)
-                    v.enabled = true;
+                foreach (var visualizer in visualizers)
+                {
+                    visualizer.enabled = true;
+                }
             }
 
-            Debug.Log("[RecordingHelper] 🎬 Recording stopped");
+            RestoreDefaultView();
+            Debug.Log("[RecordingHelper] Recording stopped");
         }
 
-        /// <summary>次のカメラ位置に切替</summary>
         public void NextCamera()
         {
             if (cameraPositions == null || cameraPositions.Length == 0) return;
+
+            CacheSceneReferences();
             if (_mainCamera == null) return;
 
             _currentCamIdx = (_currentCamIdx + 1) % cameraPositions.Length;
-            var target = cameraPositions[_currentCamIdx];
-
-            _mainCamera.transform.position = target.position;
-            _mainCamera.transform.rotation = target.rotation;
+            ApplyCamera(cameraPositions[_currentCamIdx]);
         }
 
-        /// <summary>特定のカメラ位置にジャンプ</summary>
         public void SetCamera(int index)
         {
             if (cameraPositions == null || index < 0 || index >= cameraPositions.Length) return;
+
+            CacheSceneReferences();
             if (_mainCamera == null) return;
 
             _currentCamIdx = index;
-            var target = cameraPositions[_currentCamIdx];
+            ApplyCamera(cameraPositions[_currentCamIdx]);
+        }
+
+        public void ToggleDebugRecording()
+        {
+            if (_isRecording)
+            {
+                OnRecordingStop();
+            }
+            else
+            {
+                OnRecordingStart();
+            }
+        }
+
+        private void HandleDebugHotkeys()
+        {
+            if (!enableDebugHotkeys) return;
+
+            if (!_loggedDebugHotkeys)
+            {
+                _loggedDebugHotkeys = true;
+                Debug.Log($"[RecordingHelper] Debug hotkeys: {toggleRecordingKey} toggle, {resetToDefaultViewKey} default view, {nextCameraKey} next camera");
+            }
+
+            if (Input.GetKeyDown(toggleRecordingKey))
+            {
+                ToggleDebugRecording();
+            }
+
+            if (Input.GetKeyDown(resetToDefaultViewKey))
+            {
+                RestoreDefaultView();
+            }
+
+            if (Input.GetKeyDown(nextCameraKey))
+            {
+                NextCamera();
+            }
+        }
+
+        private void CacheSceneReferences()
+        {
+            if (_mainCamera == null)
+            {
+                _mainCamera = Camera.main;
+            }
+
+            if (_goldenSpine == null)
+            {
+                _goldenSpine = GetComponentInParent<ScenarioGoldenSpine>();
+            }
+        }
+
+        public void RestoreDefaultView()
+        {
+            CacheSceneReferences();
+
+            Transform defaultView = _goldenSpine != null ? _goldenSpine.DefaultCameraView : null;
+            if (defaultView == null) return;
+
+            ApplyCamera(defaultView);
+        }
+
+        private void ApplyCamera(Transform target)
+        {
+            if (_mainCamera == null || target == null) return;
 
             _mainCamera.transform.position = target.position;
             _mainCamera.transform.rotation = target.rotation;
