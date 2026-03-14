@@ -15,6 +15,7 @@ Use live web research, keep "free only" as a hard rule, and rank candidates by i
 1. Translate the request into asset-search criteria.
 Ask only for missing constraints that materially change the answer: asset type, style, platform, render pipeline, Unity version, animation needs, poly budget, and whether the asset is visual-only or affects gameplay/tooling.
 If the user gives only a rough idea, infer a sensible first-pass search scope and state the assumption after researching.
+If the real question is whether the current repo inventory is already sufficient, use `asset-inventory-planning` first instead of jumping straight to outside research.
 If the request is part of scenario ideation, anchor the search to the current concept candidates and optimize for assets that make the chosen idea look richer without making implementation much harder.
 
 2. Research the current Unity Asset Store before recommending anything.

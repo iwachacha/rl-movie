@@ -11,6 +11,7 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 
 ## Local Skills
 - `agents-maintenance`: edit `AGENTS.md`, `.agents/`, skill layout, or instruction architecture.
+- `asset-inventory-planning`: summarize which third-party assets are already imported, what they can do, which combinations are promising, and whether a scenario can be built from current inventory before researching more.
 - `scenario-ideation`: invent video-worthy RL scenario themes and shortlist ideas that stay feasible to implement in this repo. Pair with `unity-free-asset-research` when free Asset Store visuals should influence the idea or be captured in the final hand-off memo.
 - `scenario-spec`: define or revise scenario contracts before implementation.
 - `scenario-build`: create or change scene/C#/YAML/manifest under `_RLMovie`.

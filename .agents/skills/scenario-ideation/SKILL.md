@@ -42,6 +42,7 @@ For each candidate, usually include:
 6. Recommend a direction, not just a pile of options.
 If the user asks for ideas, end with one best-balance pick and one wild-card pick.
 Explain why the best-balance pick is the safest path to a compelling video.
+If the brief says to stay inside assets that are already imported in this repo, load `asset-inventory-planning` before locking the recommendation.
 If free Asset Store visuals are part of the brief, load `unity-free-asset-research` before locking the final recommendation so the idea and asset plan are chosen together.
 If the user chooses a concept, first create a short concept memo in `docs/ideas/` as a hand-off artifact, then load `scenario-spec` when the user wants to formalize it.
 
@@ -92,5 +93,6 @@ Keep the memo short, directional, and stable enough to revisit later.
 
 - Use `references/idea-lenses.md` when ideas are too similar, too safe, or too difficult.
 - Once the user selects a concept, create a concept memo in `docs/ideas/` before moving to `scenario-spec`.
+- If the concept should be constrained by assets already present in the repo, use `asset-inventory-planning` before finalizing the memo so the memo reflects the current inventory rather than wishful imports.
 - If the concept depends heavily on free Asset Store visuals, use `unity-free-asset-research` before finalizing the memo so the memo includes the actual asset shortlist, intended usage, and compatibility notes.
 - If the concept depends heavily on third-party content beyond selection, consider `asset-intake` after the concept is chosen.
