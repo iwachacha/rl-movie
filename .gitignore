@@ -54,6 +54,9 @@ __pycache__/
 
 # Notebooks output
 Notebooks/.ipynb_checkpoints/
+AI-RL-Movie/ColabBuilds/
+.tmp-training-results/
+.venv-mlagents-1.1.0/
 
 # Third Party Assets (too large for git)
 AI-RL-Movie/Assets/ThirdParty/

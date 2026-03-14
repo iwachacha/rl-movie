@@ -22,7 +22,7 @@ namespace RLMovie.Common
         private readonly List<float> rewardHistory = new();
         private float maxReward = 1f;
         private float minReward = -1f;
-        private int lastEpisodeCount;
+        private int lastCompletedEpisodeCount;
         private bool runtimeUiEnabled = true;
 
 #if !UNITY_SERVER
@@ -64,13 +64,13 @@ namespace RLMovie.Common
                 return;
             }
 
-            if (targetAgent.TotalEpisodes <= lastEpisodeCount)
+            if (targetAgent.CompletedEpisodes <= lastCompletedEpisodeCount)
             {
                 return;
             }
 
-            lastEpisodeCount = targetAgent.TotalEpisodes;
-            rewardHistory.Add(targetAgent.CurrentEpisodeReward);
+            lastCompletedEpisodeCount = targetAgent.CompletedEpisodes;
+            rewardHistory.Add(targetAgent.LastCompletedEpisodeReward);
 
             if (rewardHistory.Count > maxDataPoints)
             {
@@ -124,13 +124,16 @@ namespace RLMovie.Common
             float statX = x + 10;
 
             GUI.Label(new Rect(statX, statY, panelWidth, 18),
-                $"Episodes: {targetAgent.TotalEpisodes}", statStyle);
+                $"Completed: {targetAgent.CompletedEpisodes}", statStyle);
 
             GUI.Label(new Rect(statX + 150, statY, panelWidth, 18),
                 $"Success: {targetAgent.SuccessRate:P1}", statStyle);
 
             GUI.Label(new Rect(statX, statY + 18, panelWidth, 18),
-                $"Current Reward: {targetAgent.CurrentEpisodeReward:F2}", statStyle);
+                $"Live Reward: {targetAgent.CurrentEpisodeReward:F2}", statStyle);
+
+            GUI.Label(new Rect(statX + 150, statY + 18, panelWidth, 18),
+                $"Last Reward: {targetAgent.LastCompletedEpisodeReward:F2}", statStyle);
 
             float graphX = x + 10;
             float graphY = statY + 42;

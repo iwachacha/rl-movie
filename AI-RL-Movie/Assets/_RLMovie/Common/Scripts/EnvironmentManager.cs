@@ -37,8 +37,13 @@ namespace RLMovie.Common
         /// <summary>環境エリアの端にランダムな位置を返す（ゴール配置用）</summary>
         public Vector3 GetRandomEdgePosition(float yOffset = 0f)
         {
-            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
             float radius = areaRadius * randomizationStrength;
+            if (!randomizePositions)
+            {
+                return transform.position + new Vector3(radius, yOffset, 0f);
+            }
+
+            float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
             Vector3 pos = new Vector3(Mathf.Cos(angle) * radius, yOffset, Mathf.Sin(angle) * radius);
             return transform.position + pos;
         }

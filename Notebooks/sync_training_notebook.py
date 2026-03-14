@@ -126,7 +126,7 @@ with open(manifest_path, 'r', encoding='utf-8') as stream:
     manifest = yaml.safe_load(stream)
 
 required_manifest_keys = [
-    'scenario_name', 'scene_name', 'agent_class', 'behavior_name', 'learning_goal',
+    'scenario_name', 'scene_name', 'agent_class', 'behavior_name', 'training_config', 'learning_goal',
     'success_conditions', 'failure_conditions', 'observation_contract', 'action_contract',
     'reward_rules', 'randomization_knobs', 'difficulty_stages', 'visual_theme',
     'camera_plan', 'acceptance_criteria', 'baseline_run', 'spec_version'
@@ -224,7 +224,39 @@ training_configs = [
 if not training_configs:
     raise FileNotFoundError('No training config YAML found next to scenario_manifest.yaml')
 
-config_path = training_configs[0]
+training_config_name = str(manifest.get('training_config', '')).strip()
+if not training_config_name:
+    raise KeyError("manifest is missing required key: training_config")
+
+if os.path.basename(training_config_name) != training_config_name:
+    raise ValueError(
+        'manifest training_config must be a file name located directly under Config.\\n'
+        f'Current value: {training_config_name}'
+    )
+
+training_configs_by_name = {
+    os.path.basename(path): path
+    for path in training_configs
+}
+
+if training_config_name not in training_configs_by_name:
+    raise FileNotFoundError(
+        'manifest training_config was not found inside the extracted build Config directory.\\n'
+        f'manifest training_config: {training_config_name}\\n'
+        f'Available configs: {sorted(training_configs_by_name)}'
+    )
+
+config_path = training_configs_by_name[training_config_name]
+extra_training_configs = sorted(
+    name for name in training_configs_by_name
+    if name != training_config_name
+)
+if extra_training_configs:
+    print('Ignoring additional training configs that are not selected by manifest:')
+    for config_name in extra_training_configs:
+        print(f"  - {config_name}")
+
+print(f"Selected training config: {config_path}")
 with open(config_path, 'r', encoding='utf-8') as stream:
     config = yaml.safe_load(stream)
 
@@ -309,6 +341,7 @@ run_context = {
     'zip_path': zip_path,
     'manifest_path': manifest_path,
     'config_path': config_path,
+    'training_config': training_config_name,
     'behavior_names': behavior_names,
     'runtime_dependency_reports': runtime_dependency_reports,
 }

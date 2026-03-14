@@ -10,6 +10,7 @@
 - `Assets/_RLMovie/Environments/<SceneName>/Config/` が存在する
 - `scenario_manifest.yaml` が存在する
 - `Config/` に `scenario_manifest.yaml` と `template_config.yaml` 以外の training YAML が 1 つ以上ある
+- manifest の `training_config` が存在し、Config 内の対象 YAML を指している
 - シーン内に `BaseRLAgent` 継承 Agent がある
 - Agent に `BehaviorParameters` と `DecisionRequester` が付いている
 - `Behavior Name` が Agent クラス名と training YAML の behaviors キーに一致する
@@ -23,6 +24,7 @@
 
 - `Heuristic` の最低限確認が通るまでは学習へ進まない
 - 学習ビルドは `RLMovie > Build for Colab (Current Scene)` を正規手順として使う
+- `Build for Colab` は manifest の `training_config` で指定した YAML だけを ZIP に同梱する
 - `Build for Colab` は Validator エラーがあると止まる前提で扱う
 
 ## モデル取込ゲート

@@ -5,6 +5,7 @@ scenario_name: Template
 scene_name: Template
 agent_class: TemplateAgent
 behavior_name: TemplateAgent
+training_config: "__TRAINING_CONFIG_NAME__"
 learning_goal: "スターター骨格ではエージェントが落下せずに Goal へ到達する基本方策を学習する"
 success_conditions:
   - "エージェントと Goal の距離が goalDistance 未満になったら成功"

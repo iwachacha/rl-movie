@@ -23,6 +23,7 @@ namespace RLMovie.Editor
             "scene_name",
             "agent_class",
             "behavior_name",
+            "training_config",
             "learning_goal",
             "success_conditions",
             "failure_conditions",
@@ -102,9 +103,11 @@ namespace RLMovie.Editor
                 report.AddError("学習用 YAML が見つかりません。Config フォルダに scenario_manifest.yaml 以外の .yaml を配置してください。");
             }
 
+            string selectedTrainingConfigPath = null;
             if (File.Exists(manifestPath))
             {
-                ValidateManifest(manifestPath, scenarioName, report);
+                ValidateManifest(manifestPath, scenarioName, configDir, trainingConfigs, report);
+                selectedTrainingConfigPath = ResolveTrainingConfigPath(manifestPath, configDir, trainingConfigs);
             }
 
             var agents = UnityEngine.Object.FindObjectsByType<RLMovie.Common.BaseRLAgent>(FindObjectsSortMode.None);
@@ -113,10 +116,14 @@ namespace RLMovie.Editor
                 report.AddError("BaseRLAgent を継承した Agent がシーン内に見つかりません。");
             }
 
-            string[] behaviorNamesFromConfig = trainingConfigs
-                .SelectMany(ReadBehaviorNames)
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
+            string[] behaviorNamesFromConfig = string.IsNullOrEmpty(selectedTrainingConfigPath)
+                ? trainingConfigs
+                    .SelectMany(ReadBehaviorNames)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray()
+                : ReadBehaviorNames(selectedTrainingConfigPath)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
 
             foreach (var agent in agents)
             {
@@ -131,7 +138,12 @@ namespace RLMovie.Editor
             return report;
         }
 
-        private static void ValidateManifest(string manifestPath, string scenarioName, ScenarioValidationReport report)
+        private static void ValidateManifest(
+            string manifestPath,
+            string scenarioName,
+            string configDir,
+            string[] trainingConfigs,
+            ScenarioValidationReport report)
         {
             var manifestKeys = ReadTopLevelKeys(manifestPath);
             foreach (string key in RequiredManifestKeys)
@@ -150,6 +162,39 @@ namespace RLMovie.Editor
             {
                 report.AddError("manifest の `spec_version` が空です。");
             }
+
+            string trainingConfig = ReadTopLevelScalar(manifestPath, "training_config");
+            if (string.IsNullOrWhiteSpace(trainingConfig))
+            {
+                report.AddError("manifest の `training_config` が空です。");
+                return;
+            }
+
+            if (!string.Equals(Path.GetFileName(trainingConfig), trainingConfig, StringComparison.Ordinal))
+            {
+                report.AddError("manifest の `training_config` は Config 直下のファイル名だけを指定してください。");
+                return;
+            }
+
+            string selectedTrainingConfigPath = Path.Combine(configDir, trainingConfig);
+            if (!trainingConfigs.Contains(selectedTrainingConfigPath, StringComparer.OrdinalIgnoreCase))
+            {
+                report.AddError($"manifest の `training_config` が Config 内の学習 YAML を指していません。現在値: `{trainingConfig}`");
+            }
+        }
+
+        private static string ResolveTrainingConfigPath(string manifestPath, string configDir, string[] trainingConfigs)
+        {
+            string trainingConfig = ReadTopLevelScalar(manifestPath, "training_config");
+            if (string.IsNullOrWhiteSpace(trainingConfig))
+            {
+                return null;
+            }
+
+            string selectedTrainingConfigPath = Path.Combine(configDir, trainingConfig);
+            return trainingConfigs.Contains(selectedTrainingConfigPath, StringComparer.OrdinalIgnoreCase)
+                ? selectedTrainingConfigPath
+                : null;
         }
 
         private static void ValidateManifestScalar(string manifestPath, string key, string expectedValue, ScenarioValidationReport report)

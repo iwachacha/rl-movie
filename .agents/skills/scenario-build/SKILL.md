@@ -11,7 +11,8 @@ description: Implement or modify RL scenarios in this repository. Use when creat
 - 新規シナリオは `AI-RL-Movie/Assets/_RLMovie/Environments/<PascalCase>/` に作る
 - 必須フォルダは `Scenes/`、`Scripts/`、`Prefabs/`、`Config/`
 - 新規作成は Scene、Agent、training YAML、`scenario_manifest.yaml` の 4 点セットで始める
-- `_Template` はコピー元として使い、テンプレート自体は編集しない
+- 新規作成はまず `RLMovie/Create Golden Scenario Starter Files` を使い、その後に生成された scene builder を実行する
+- `_Template` は generator の正本テンプレートであり、手コピー先として直接複製しない
 - 新しい Agent は `BaseRLAgent` を継承し、namespace は `RLMovie.Environments.<Scenario>` にする
 - `Behavior Name = Agent クラス名 = training YAML の behaviors キー = manifest の behavior_name` を保つ
 - `scenario_name = scene_name = Unity Scene 名 = シナリオフォルダ名` を保つ

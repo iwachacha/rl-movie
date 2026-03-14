@@ -6,6 +6,7 @@
 - `scene_name`
 - `agent_class`
 - `behavior_name`
+- `training_config`
 - `learning_goal`
 - `success_conditions`
 - `failure_conditions`
@@ -25,6 +26,7 @@
 - `scenario_name = scene_name = Unity Scene 名 = シナリオフォルダ名`
 - `agent_class = Agent クラス名`
 - `behavior_name = Behavior Parameters の Behavior Name = training YAML の behaviors キー`
+- `training_config = Config/` 直下で学習に使う YAML ファイル名
 
 ## 新規シナリオの最小形
 
