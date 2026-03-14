@@ -34,5 +34,5 @@ $validateScript = "from importlib.metadata import version; import mlagents, mlag
 Write-Host ""
 Write-Host "Environment ready."
 Write-Host "Next steps:"
-Write-Host "  1. Local Editor training: .\Notebooks\run_local_training.ps1 -ConfigPath Notebooks\golden_spine_smoke_live_record.yaml -RunId golden_spine_smoke__v1__local-check__$(Get-Date -Format yyyyMMdd_HHmm)"
-Write-Host "  2. Local build training:  .\Notebooks\run_local_training.ps1 -ConfigPath Notebooks\golden_spine_smoke_live_record.yaml -RunId golden_spine_smoke__v1__local-build__$(Get-Date -Format yyyyMMdd_HHmm) -EnvPath AI-RL-Movie\ColabBuilds\GoldenSpineSmoke\GoldenSpineSmoke.x86_64 -NoGraphics"
+Write-Host "  1. Local Editor training: .\Notebooks\run_local_training.ps1 -ConfigPath <path-to-config.yaml> -RunId <scenario_slug>__v1__local-check__$(Get-Date -Format yyyyMMdd_HHmm)"
+Write-Host "  2. Local build training:  .\Notebooks\run_local_training.ps1 -ConfigPath <path-to-config.yaml> -RunId <scenario_slug>__v1__local-build__$(Get-Date -Format yyyyMMdd_HHmm) -EnvPath <path-to-linux-build> -NoGraphics"

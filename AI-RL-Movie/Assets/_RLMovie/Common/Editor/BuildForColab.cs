@@ -5,6 +5,7 @@ using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using Unity.MLAgents.Policies;
 
 namespace RLMovie.Editor
 {
@@ -23,11 +24,11 @@ namespace RLMovie.Editor
         private const string BuildRootDir = "ColabBuilds";
         private const string DriveUploadDir = "ColabBuilds/_ReadyToUpload";
         private const string TrainingRequirementsRelativePath = "Notebooks/mlagents-training-requirements.txt";
-        // Colab training is always headless, so prefer the dedicated server subtarget
-        // when it is available. If the editor does not have the dedicated server
-        // module installed, fall back to a regular Linux player build automatically.
-        private const StandaloneBuildSubtarget PreferredColabSubtarget = StandaloneBuildSubtarget.Server;
-        private const StandaloneBuildSubtarget FallbackColabSubtarget = StandaloneBuildSubtarget.Player;
+        private static readonly string[] ColabBuildDefines = { "APP_UI_EDITOR_ONLY" };
+        // Colab training is always headless. Require the dedicated server subtarget
+        // so the exported Linux build does not depend on desktop UI libraries that
+        // are often unavailable in Colab runtimes.
+        private const StandaloneBuildSubtarget ColabSubtarget = StandaloneBuildSubtarget.Server;
 
         public sealed class ColabBuildResult
         {
@@ -81,6 +82,12 @@ namespace RLMovie.Editor
                     interactive);
             }
 
+            string behaviorTypeError = ValidateTrainingBehaviorTypesForCurrentScene();
+            if (!string.IsNullOrEmpty(behaviorTypeError))
+            {
+                return Fail(behaviorTypeError, interactive);
+            }
+
             string sceneName = activeScene.name;
             return Build(sceneName, new[] { activeScene.path }, interactive);
         }
@@ -132,7 +139,15 @@ namespace RLMovie.Editor
             string executablePath = Path.Combine(buildDir, $"{sceneName}.x86_64");
             string uploadDir = Path.Combine(projectRoot, DriveUploadDir);
             string zipPath = Path.Combine(uploadDir, $"{sceneName}.zip");
-            string trainingRequirementsPath = Path.Combine(projectRoot, TrainingRequirementsRelativePath);
+            if (!TryResolveTrainingRequirementsPath(projectRoot, out string trainingRequirementsPath, out string trainingRequirementsError))
+            {
+                return Fail(
+                    trainingRequirementsError,
+                    interactive,
+                    sceneName,
+                    manifestPath,
+                    yamlFiles);
+            }
 
             if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Standalone, BuildTarget.StandaloneLinux64))
             {
@@ -145,21 +160,27 @@ namespace RLMovie.Editor
             }
 
             StandaloneBuildSubtarget previousSubtarget = EditorUserBuildSettings.standaloneBuildSubtarget;
-            StandaloneBuildSubtarget usedSubtarget = FallbackColabSubtarget;
-            string buildModeNote = string.Empty;
             try
             {
-                BuildReport report = BuildPlayerWithFallback(
+                BuildReport report = BuildDedicatedServerPlayer(
                     sceneName,
                     scenePaths,
                     buildDir,
-                    executablePath,
-                    out usedSubtarget,
-                    out buildModeNote);
+                    executablePath);
 
                 if (report.summary.result != BuildResult.Succeeded)
                 {
                     string buildFailureDetail = GetLatestBuildFailureDetail();
+                    if (IsMissingDedicatedServerSupportError(buildFailureDetail))
+                    {
+                        return Fail(
+                            "Build for Colab requires Linux Dedicated Server Build Support in this Unity Editor.\n\nRegular Linux player builds can succeed locally but crash in Colab headless runtimes because desktop UI libraries are missing.\n\nOpen Unity Hub > Installs > Add modules and install both Linux Build Support (IL2CPP/Mono as needed) and Linux Dedicated Server Build Support, then rebuild.",
+                            interactive,
+                            sceneName,
+                            manifestPath,
+                            yamlFiles);
+                    }
+
                     return Fail(
                         $"ビルドに失敗しました: {report.summary.result}\n{buildFailureDetail}",
                         interactive,
@@ -168,12 +189,20 @@ namespace RLMovie.Editor
                         yamlFiles);
                 }
 
-                Debug.Log($"[BuildForColab] ✅ Build succeeded: {executablePath}");
-                Debug.Log($"[BuildForColab] Build subtarget: {usedSubtarget}");
-                if (!string.IsNullOrEmpty(buildModeNote))
+                PruneHeadlessIncompatibleArtifacts(buildDir);
+
+                if (!TryValidateHeadlessBuildOutputs(buildDir, out string headlessBuildError))
                 {
-                    Debug.LogWarning($"[BuildForColab] {buildModeNote}");
+                    return Fail(
+                        headlessBuildError,
+                        interactive,
+                        sceneName,
+                        manifestPath,
+                        yamlFiles);
                 }
+
+                Debug.Log($"[BuildForColab] ✅ Build succeeded: {executablePath}");
+                Debug.Log($"[BuildForColab] Build subtarget: {ColabSubtarget}");
 
                 EditorUtility.DisplayProgressBar("Building for Colab", "Copying scenario files...", 0.7f);
                 CopyScenarioFiles(sceneName, buildDir, configDir, manifestPath, yamlFiles, trainingRequirementsPath);
@@ -203,9 +232,7 @@ namespace RLMovie.Editor
             Debug.Log($"[BuildForColab] 📦 ZIP created: {zipPath} ({zipSizeMB} MB)");
             Debug.Log($"[BuildForColab] 📁 Upload this ZIP to Google Drive: RL-Movie/Builds/");
 
-            string modeSummary = usedSubtarget == PreferredColabSubtarget
-                ? "Dedicated Server"
-                : "Linux Player (fallback)";
+            string modeSummary = "Dedicated Server";
             string message = $"✅ {sceneName} のビルドが完了しました\n\nMode: {modeSummary}\nZIP: {Path.GetFullPath(zipPath)} ({zipSizeMB} MB)\nmanifest: {Path.GetFileName(manifestPath)}\nYAML: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}";
             if (interactive)
             {
@@ -221,68 +248,39 @@ namespace RLMovie.Editor
                 ZipPath = zipPath,
                 ManifestPath = manifestPath,
                 YamlFiles = yamlFiles,
-                UsedSubtarget = usedSubtarget,
+                UsedSubtarget = ColabSubtarget,
                 Message = message
             };
         }
 
-        private static BuildReport BuildPlayerWithFallback(
+        private static BuildReport BuildDedicatedServerPlayer(
             string sceneName,
             string[] scenePaths,
             string buildDir,
-            string executablePath,
-            out StandaloneBuildSubtarget usedSubtarget,
-            out string buildModeNote)
+            string executablePath)
         {
-            usedSubtarget = PreferredColabSubtarget;
-            buildModeNote = string.Empty;
+            PrepareBuildDirectory(buildDir);
+            Debug.Log($"[BuildForColab] 🔨 Building {sceneName} for Linux ({ColabSubtarget})...");
 
-            foreach (StandaloneBuildSubtarget subtarget in new[] { PreferredColabSubtarget, FallbackColabSubtarget })
+            if (EditorUserBuildSettings.standaloneBuildSubtarget != ColabSubtarget)
             {
-                PrepareBuildDirectory(buildDir);
-                Debug.Log($"[BuildForColab] 🔨 Building {sceneName} for Linux ({subtarget})...");
-
-                if (EditorUserBuildSettings.standaloneBuildSubtarget != subtarget)
-                {
-                    Debug.Log(
-                        $"[BuildForColab] Forcing standalone subtarget from {EditorUserBuildSettings.standaloneBuildSubtarget} to {subtarget} for Colab build.");
-                    EditorUserBuildSettings.standaloneBuildSubtarget = subtarget;
-                }
-
-                EditorUtility.DisplayProgressBar("Building for Colab", $"Building {sceneName} ({subtarget})...", 0.3f);
-
-                BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
-                {
-                    scenes = scenePaths,
-                    locationPathName = executablePath,
-                    targetGroup = BuildTargetGroup.Standalone,
-                    target = BuildTarget.StandaloneLinux64,
-                    subtarget = (int)subtarget,
-                    options = BuildOptions.None
-                });
-
-                if (report.summary.result == BuildResult.Succeeded)
-                {
-                    usedSubtarget = subtarget;
-                    return report;
-                }
-
-                string buildFailureDetail = GetLatestBuildFailureDetail();
-                if (subtarget == PreferredColabSubtarget && IsMissingDedicatedServerSupportError(buildFailureDetail))
-                {
-                    buildModeNote =
-                        "Linux Dedicated Server Build Support is not installed in this Unity Editor. Falling back to a regular Linux player build for Colab packaging.";
-                    Debug.LogWarning($"[BuildForColab] {buildModeNote}");
-                    continue;
-                }
-
-                usedSubtarget = subtarget;
-                return report;
+                Debug.Log(
+                    $"[BuildForColab] Forcing standalone subtarget from {EditorUserBuildSettings.standaloneBuildSubtarget} to {ColabSubtarget} for Colab build.");
+                EditorUserBuildSettings.standaloneBuildSubtarget = ColabSubtarget;
             }
 
-            usedSubtarget = FallbackColabSubtarget;
-            buildModeNote = "No compatible Linux Colab build mode was available.";
-            throw new InvalidOperationException("BuildPlayerWithFallback exited without producing a BuildReport.");
+            EditorUtility.DisplayProgressBar("Building for Colab", $"Building {sceneName} ({ColabSubtarget})...", 0.3f);
+
+            return BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = scenePaths,
+                locationPathName = executablePath,
+                targetGroup = BuildTargetGroup.Standalone,
+                target = BuildTarget.StandaloneLinux64,
+                subtarget = (int)ColabSubtarget,
+                extraScriptingDefines = ColabBuildDefines,
+                options = BuildOptions.None
+            });
         }
 
         private static void PrepareBuildDirectory(string buildDir)
@@ -357,16 +355,9 @@ namespace RLMovie.Editor
             File.Copy(manifestPath, manifestDest, true);
             Debug.Log($"[BuildForColab] 📋 Manifest copied: {Path.GetFileName(manifestPath)}");
 
-            if (File.Exists(trainingRequirementsPath))
-            {
-                string requirementsDest = Path.Combine(targetConfigDir, "training_requirements.txt");
-                File.Copy(trainingRequirementsPath, requirementsDest, true);
-                Debug.Log($"[BuildForColab] 📋 Training requirements copied: {Path.GetFileName(requirementsDest)}");
-            }
-            else
-            {
-                Debug.LogWarning($"[BuildForColab] Training requirements file not found: {trainingRequirementsPath}");
-            }
+            string requirementsDest = Path.Combine(targetConfigDir, "training_requirements.txt");
+            File.Copy(trainingRequirementsPath, requirementsDest, true);
+            Debug.Log($"[BuildForColab] 📋 Training requirements copied: {Path.GetFileName(requirementsDest)}");
 
             string readmePath = Path.Combine(targetConfigDir, "README.txt");
             File.WriteAllText(
@@ -432,6 +423,117 @@ namespace RLMovie.Editor
             return normalized.Contains("dedicated server support")
                 && normalized.Contains("linux")
                 && normalized.Contains("not installed");
+        }
+
+        private static bool TryResolveTrainingRequirementsPath(
+            string projectRoot,
+            out string trainingRequirementsPath,
+            out string errorMessage)
+        {
+            string[] candidates = new[]
+            {
+                Path.Combine(projectRoot, TrainingRequirementsRelativePath),
+                Path.GetFullPath(Path.Combine(projectRoot, "..", TrainingRequirementsRelativePath))
+            }
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+            foreach (string candidate in candidates)
+            {
+                if (File.Exists(candidate))
+                {
+                    trainingRequirementsPath = candidate;
+                    errorMessage = string.Empty;
+                    return true;
+                }
+            }
+
+            trainingRequirementsPath = null;
+            errorMessage =
+                "Pinned training requirements file was not found. Colab builds must include training_requirements.txt so the notebook can verify package compatibility.\n\n"
+                + $"Expected one of:{Environment.NewLine}"
+                + string.Join(Environment.NewLine, candidates.Select(Path.GetFullPath));
+            return false;
+        }
+
+        private static string ValidateTrainingBehaviorTypesForCurrentScene()
+        {
+            var invalidAgents = UnityEngine.Object.FindObjectsByType<RLMovie.Common.BaseRLAgent>(FindObjectsSortMode.None)
+                .Select(agent => new
+                {
+                    AgentName = agent.gameObject.name,
+                    BehaviorParameters = agent.GetComponent<BehaviorParameters>()
+                })
+                .Where(entry => entry.BehaviorParameters != null && entry.BehaviorParameters.BehaviorType != BehaviorType.Default)
+                .Select(entry => $"{entry.AgentName}: {entry.BehaviorParameters.BehaviorType}")
+                .ToArray();
+
+            if (invalidAgents.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            return
+                "Build for Colab requires every training agent to use Behavior Type = Default.\n\n"
+                + "Default still supports heuristic play when no trainer or model is attached, so it is the safe baseline for both manual checks and Colab training.\n\n"
+                + "Agents with invalid Behavior Type:\n"
+                + string.Join(Environment.NewLine, invalidAgents);
+        }
+
+        private static bool TryValidateHeadlessBuildOutputs(string buildDir, out string errorMessage)
+        {
+            bool hasForbiddenRuntimeFiles =
+                Directory.GetFiles(buildDir, "Unity.AppUI*.dll", SearchOption.AllDirectories).Any()
+                || Directory.GetFiles(buildDir, "libAppUINativePlugin.so", SearchOption.AllDirectories).Any();
+
+            if (!hasForbiddenRuntimeFiles)
+            {
+                errorMessage = string.Empty;
+                return true;
+            }
+
+            string[] found = Directory.GetFiles(buildDir, "Unity.AppUI*.dll", SearchOption.AllDirectories)
+                .Concat(Directory.GetFiles(buildDir, "libAppUINativePlugin.so", SearchOption.AllDirectories))
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            errorMessage =
+                "Colab headless build still contains App UI runtime binaries after compilation.\n\n"
+                + "These files trigger libgtk-dependent native initialization in Colab and will crash or hang training.\n\n"
+                + "Found files:\n"
+                + string.Join(Environment.NewLine, found)
+                + "\n\nExpected build define:\n"
+                + string.Join(", ", ColabBuildDefines);
+            return false;
+        }
+
+        private static void PruneHeadlessIncompatibleArtifacts(string buildDir)
+        {
+            string[] appUiAssemblies = Directory.GetFiles(buildDir, "Unity.AppUI*.dll", SearchOption.AllDirectories);
+            string[] nativePlugins = Directory.GetFiles(buildDir, "libAppUINativePlugin.so", SearchOption.AllDirectories);
+
+            if (nativePlugins.Length == 0)
+            {
+                return;
+            }
+
+            // Dedicated server Colab builds should never ship the Linux App UI native plugin.
+            // If the managed App UI runtime has already been excluded by APP_UI_EDITOR_ONLY,
+            // we can safely strip the orphaned native binary from the exported player.
+            if (appUiAssemblies.Length == 0)
+            {
+                foreach (string pluginPath in nativePlugins)
+                {
+                    File.Delete(pluginPath);
+                    Debug.Log($"[BuildForColab] Removed headless-incompatible native plugin: {pluginPath}");
+                }
+
+                return;
+            }
+
+            Debug.LogWarning(
+                "[BuildForColab] App UI managed assemblies are still present in the exported build, so libAppUINativePlugin.so was not auto-removed.");
         }
 
         private static string[] GetCandidateLogPaths()

@@ -39,6 +39,12 @@ namespace RLMovie.Common
 
         private void Awake()
         {
+            if (IsHeadlessRuntime())
+            {
+                enabled = false;
+                return;
+            }
+
             CacheSceneReferences();
         }
 
@@ -188,6 +194,11 @@ namespace RLMovie.Common
 
             _mainCamera.transform.position = target.position;
             _mainCamera.transform.rotation = target.rotation;
+        }
+
+        private static bool IsHeadlessRuntime()
+        {
+            return Application.isBatchMode || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null;
         }
     }
 }

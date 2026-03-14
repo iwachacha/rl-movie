@@ -90,7 +90,7 @@ namespace RLMovie.Editor
             // ML-Agents Agent may auto-add BehaviorParameters, so reuse it instead of creating duplicates.
             var behaviorParameters = agentObject.GetComponent<BehaviorParameters>() ?? agentObject.AddComponent<BehaviorParameters>();
             behaviorParameters.BehaviorName = behaviorName;
-            behaviorParameters.BehaviorType = BehaviorType.HeuristicOnly;
+            behaviorParameters.BehaviorType = BehaviorType.Default;
             behaviorParameters.BrainParameters.VectorObservationSize = vectorObservationSize;
             behaviorParameters.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(Mathf.Max(1, continuousActionSize));
 

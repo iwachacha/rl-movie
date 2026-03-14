@@ -17,7 +17,7 @@ namespace RLMovie.Editor
             [ToolParameter("Action to perform: create_golden_starter, create_scenario_scene, validate_current_scene, build_current_scene_for_colab.")]
             public string action { get; set; }
 
-            [ToolParameter("Scenario name for starter creation or scene creation, such as GoldenSpineSmoke.", Required = false)]
+            [ToolParameter("Scenario name for starter creation or scene creation, such as MyScenario.", Required = false)]
             public string scenario_name { get; set; }
 
             [ToolParameter("When true, overwrite generated starter files if they already exist.", Required = false, DefaultValue = "false")]

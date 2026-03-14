@@ -105,7 +105,9 @@ if probe.stderr.strip():
 
 def build_validate_cell_source() -> list[str]:
     cell_code = """#@title Validate Manifest and Run ID { run: "auto" }
+import glob
 import json
+import subprocess
 import yaml
 
 if not HYPOTHESIS.strip():
@@ -160,7 +162,60 @@ if os.path.exists(build_requirements_path):
         )
     print(f"Training requirements verified: {build_requirements_path}")
 else:
-    print('Training requirements file not found in build ZIP. Using notebook-pinned requirements.')
+    raise FileNotFoundError(
+        'Build ZIP is missing Config/training_requirements.txt.\\n'
+        'Rebuild the scenario with the latest `RLMovie > Build for Colab (Current Scene)` before training.\\n'
+        f'Missing file: {build_requirements_path}'
+    )
+
+exec_path = exec_files[0]
+runtime_link_targets = [exec_path]
+unity_player_path = os.path.join(BUILD_DIR, 'UnityPlayer.so')
+if os.path.exists(unity_player_path):
+    runtime_link_targets.append(unity_player_path)
+runtime_link_targets.extend(
+    sorted(glob.glob(os.path.join(BUILD_DIR, '**', 'Plugins', '*.so'), recursive=True))
+)
+runtime_link_targets = list(dict.fromkeys(runtime_link_targets))
+
+def inspect_runtime_links(binary_path):
+    probe = subprocess.run(['ldd', binary_path], capture_output=True, text=True, check=False)
+    stdout = probe.stdout.strip()
+    stderr = probe.stderr.strip()
+    missing = [
+        line.strip()
+        for line in stdout.splitlines()
+        if 'not found' in line
+    ]
+    return {
+        'path': binary_path,
+        'returncode': probe.returncode,
+        'missing': missing,
+        'stdout': stdout,
+        'stderr': stderr,
+    }
+
+runtime_dependency_reports = []
+missing_runtime_dependencies = []
+for binary_path in runtime_link_targets:
+    report = inspect_runtime_links(binary_path)
+    runtime_dependency_reports.append(report)
+    print(f"ldd check: {binary_path}")
+    print(report['stdout'] or '[no stdout]')
+    if report['stderr']:
+        print(report['stderr'])
+    if report['missing']:
+        missing_runtime_dependencies.extend(
+            f"{binary_path}: {line}"
+            for line in report['missing']
+        )
+
+if missing_runtime_dependencies:
+    raise RuntimeError(
+        'Extracted Unity build has missing shared library dependencies.\\n'
+        'This usually means the Colab package was built with the wrong Linux target or is missing runtime files.\\n\\n'
+        + '\\n'.join(missing_runtime_dependencies)
+    )
 
 training_configs = [
     path for path in config_files
@@ -178,6 +233,48 @@ if manifest['behavior_name'] not in behavior_names:
     raise ValueError(
         f"manifest behavior_name ({manifest['behavior_name']}) not found in training config behaviors ({behavior_names})"
     )
+
+existing_run_dir = os.path.join(DRIVE_RESULTS, RUN_ID)
+existing_checkpoint_files = sorted(glob.glob(f"{existing_run_dir}/**/*.pt", recursive=True))
+existing_onnx_files = sorted(glob.glob(f"{existing_run_dir}/**/*.onnx", recursive=True))
+existing_event_files = sorted(glob.glob(f"{existing_run_dir}/**/events.out.tfevents.*", recursive=True))
+
+if RESUME_TRAINING:
+    if not os.path.isdir(existing_run_dir):
+        raise FileNotFoundError(
+            'RESUME_TRAINING is enabled, but the run directory does not exist.\\n'
+            f'Missing directory: {existing_run_dir}\\n'
+            'Use the original RUN_ID from the run you want to continue, or disable RESUME_TRAINING for a fresh run.'
+        )
+
+    expected_resume_checkpoints = [
+        os.path.join(existing_run_dir, behavior_name, 'checkpoint.pt')
+        for behavior_name in behavior_names
+    ]
+    missing_resume_checkpoints = [
+        path for path in expected_resume_checkpoints
+        if not os.path.exists(path)
+    ]
+
+    if missing_resume_checkpoints:
+        raise RuntimeError(
+            'RESUME_TRAINING is enabled, but the run directory is not resumable.\\n'
+            'ML-Agents expects a checkpoint.pt file for each behavior before resume can work.\\n\\n'
+            'Missing expected checkpoints:\\n'
+            + '\\n'.join(missing_resume_checkpoints)
+            + '\\n\\n'
+            + f'Existing .pt files: {len(existing_checkpoint_files)}\\n'
+            + f'Existing .onnx files: {len(existing_onnx_files)}\\n'
+            + f'Existing event files: {len(existing_event_files)}\\n\\n'
+            + 'This usually means a previous run exported early artifacts before failing, leaving a partial run directory. '
+            + 'Use a new RUN_ID or disable RESUME_TRAINING to start clean.'
+        )
+else:
+    if os.path.isdir(existing_run_dir):
+        print(f"Fresh run mode: existing results directory will be overwritten by --force: {existing_run_dir}")
+        print(f"Existing .pt files: {len(existing_checkpoint_files)}")
+        print(f"Existing .onnx files: {len(existing_onnx_files)}")
+        print(f"Existing event files: {len(existing_event_files)}")
 
 for behavior_name, behavior_config in config.get('behaviors', {}).items():
     behavior_config['max_steps'] = MAX_STEPS
@@ -213,6 +310,7 @@ run_context = {
     'manifest_path': manifest_path,
     'config_path': config_path,
     'behavior_names': behavior_names,
+    'runtime_dependency_reports': runtime_dependency_reports,
 }
 
 os.makedirs(RUN_RESULTS_DIR, exist_ok=True)

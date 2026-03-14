@@ -212,6 +212,7 @@ namespace RLMovie.Common
 
         #region Debug GUI
 
+#if !UNITY_SERVER
         private void OnGUI()
         {
             if (!showDebugInfo || !_visualDebugEnabled) return;
@@ -237,6 +238,7 @@ namespace RLMovie.Common
                     $"Success: {SuccessRate:P1}", style);
             }
         }
+#endif
 
         private static bool IsHeadlessRuntime()
         {

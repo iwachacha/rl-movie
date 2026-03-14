@@ -42,9 +42,9 @@
    手順: `RLMovie/Build for Colab (Current Scene)` を実行する。
    合格条件: build が通り、zip 内または build 出力内に training YAML と `scenario_manifest.yaml` が同梱される。
 
-12. 既存サンプル再確認
-   手順: `RollerBall` を builder から再生成するか、既存 scene を開いて validator を回す。
-   合格条件: Golden Spine 対応後も既存サンプルが壊れていない。
+12. 対象シナリオ再確認
+   手順: 対象 scene を開いて validator を回す。
+   合格条件: 対象シナリオの validator と build が通る。
 
 13. MCP 経由の save / console / scene 操作確認
    手順: MCP で scene 保存、Console 取得、対象 scene の再オープンを行う。
