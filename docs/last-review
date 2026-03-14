@@ -1,0 +1,55 @@
+1. MCP 接続確認
+   手順: 新セッション開始後に `Unity MCP でこのプロジェクトへ接続できるか確認して、接続状態と使える操作を報告してください` と依頼する。
+   合格条件: Unity Editor に接続でき、scene/save/console まわりを触れる状態が確認できる。
+
+2. Unity プロジェクト状態確認
+   手順: 現在開いている project が `c:\rl-movie\AI-RL-Movie` か、Console に致命的 compile error がないか確認する。
+   合格条件: project が正しく開いていて、C# コンパイルが通っている。
+
+3. Golden Spine メニュー出現確認
+   手順: `RLMovie/Create Golden Scenario Starter Files` が見えるか確認する。
+   合格条件: 新メニューが存在する。
+
+4. 新規スターター生成確認
+   手順: テスト用シナリオ名で starter files を生成する。
+   合格条件: `Environments/<Scenario>/` 配下に scene 用 path、agent、builder、manifest、training YAML が作られる。
+
+5. 生成後の再コンパイル確認
+   手順: starter files 生成直後に Unity の再コンパイル完了を待ち、Console を確認する。
+   合格条件: 生成された Agent / SceneBuilder がコンパイルエラーなしで読み込まれる。
+
+6. 生成シーン作成確認
+   手順: 生成された `RLMovie/Create <Scenario> Scene` を実行する。
+   合格条件: scene が保存され、`EnvironmentRoot`、Agent、Goal、`EnvironmentManager`、`TrainingVisualizer`、`RecordingHelper`、camera anchors、`ScenarioGoldenSpine` が揃う。
+
+7. Golden Spine 配線確認
+   手順: Inspector または MCP で `ScenarioGoldenSpine` の参照、`RecordingHelper.cameraPositions`、`TrainingVisualizer.targetAgent` を確認する。
+   合格条件: 参照欠けがなく、camera anchors と recording helper の配列が一致している。
+
+8. Validator 確認
+   手順: `RLMovie/Validate Current Scenario` を実行する。
+   合格条件: error 0。warning は内容を確認し、意図しないものがなければ可。
+
+9. Play / Heuristic 確認
+   手順: Play して Agent が最低限動くか、Goal 到達や失敗条件が自然か確認する。
+   合格条件: Heuristic で 1 エピソード以上の基本動作確認ができる。
+
+10. Recording 方針確認
+   手順: `RecordingHelper.hideUIWhenRecording`、camera switching、default view の動作前提を確認する。
+   合格条件: 録画時に UI 非表示方針とカメラ切替前提が崩れていない。
+
+11. Build for Colab 確認
+   手順: `RLMovie/Build for Colab (Current Scene)` を実行する。
+   合格条件: build が通り、zip 内または build 出力内に training YAML と `scenario_manifest.yaml` が同梱される。
+
+12. 対象シナリオ再確認
+   手順: 対象 scene を開いて validator を回す。
+   合格条件: 対象シナリオの validator と build が通る。
+
+13. MCP 経由の save / console / scene 操作確認
+   手順: MCP で scene 保存、Console 取得、対象 scene の再オープンを行う。
+   合格条件: 実機確認に必要な最低限の MCP 操作が一通り通る。
+
+14. 最終判定
+   手順: 問題があれば「実害あり / 軽微 / 後回し可」に分けて報告する。
+   合格条件: Golden Spine を今後の公式スターターとして使えると判断できる。

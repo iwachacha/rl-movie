@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Free Asset Research"
+  short_description: "Find top free Unity Asset Store picks for a build idea."
+  default_prompt: "Use $unity-free-asset-research to find the best free Unity Asset Store assets for this idea."

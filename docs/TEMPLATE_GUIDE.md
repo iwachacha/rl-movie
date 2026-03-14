@@ -120,7 +120,7 @@ namespace RLMovie.Environments.<シナリオ名>
 
 ### Step 5: Heuristic テスト
 
-1. `Behavior Parameters` の `Behavior Type` を `Heuristic Only` に設定
+1. `Behavior Parameters` の `Behavior Type` を `Default` に設定
 2. Play モードで手動操作テスト
 3. 報酬が正しく動いているか Console ログで確認
 4. `TrainingVisualizer` を配置してグラフを確認
@@ -179,14 +179,6 @@ Inspector で設定可能なパラメータ:
 
 ---
 
-## 参考実装: RollerBall
+## 参考実装について
 
-`Environments/RollerBall/` は完成済みのサンプルシナリオです。新しいシナリオを作る際の参考にしてください:
-
-| ファイル | 学べること |
-|---------|-----------|
-| `RollerBallAgent.cs` | BaseRLAgent 継承、Observation 設計、報酬設計 |
-| `FloorVisual.cs` | 床のビジュアルフィードバック（色フラッシュ） |
-| `TargetVisual.cs` | ターゲットの演出（パルス、回転、グロー） |
-| `roller_ball_config.yaml` | YAML 設定の実例 |
-| `RollerBallSceneBuilder.cs` | Editor スクリプトでのシーン自動構築 |
+同梱サンプルシナリオは撤去済みです。新しいシナリオを作るときは `_Template/` を起点にし、自分のシナリオ名で `Environments/<ScenarioName>/` を作成してください。

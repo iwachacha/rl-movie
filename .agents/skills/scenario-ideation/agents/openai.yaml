@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scenario Ideation"
+  short_description: "Invent video-worthy RL scenario ideas that stay buildable."
+  default_prompt: "Use $scenario-ideation to generate creative RL scenario ideas that are visually striking and still feasible to build in this repo."

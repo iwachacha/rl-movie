@@ -13,7 +13,7 @@
 
 | 種別 | 形式 | 例 |
 |------|------|---|
-| クラス / struct | PascalCase | `RollerBallAgent`, `EnvironmentManager` |
+| クラス / struct | PascalCase | `ScenarioAgent`, `EnvironmentManager` |
 | public メソッド | PascalCase | `GetRandomPosition()`, `OnRecordingStart()` |
 | private / protected メソッド | PascalCase | `ApplyColor()`, `NextCamera()` |
 | public プロパティ | PascalCase | `SuccessRate`, `TotalEpisodes` |
@@ -32,7 +32,7 @@
 namespace RLMovie.Common { }
 
 // シナリオ固有スクリプト
-namespace RLMovie.Environments.RollerBall { }
+namespace RLMovie.Environments.MyScenario { }
 namespace RLMovie.Environments.MazeRunner { }
 
 // エディタ拡張
@@ -138,7 +138,7 @@ Debug.Log($"[{クラス名}] 絵文字 メッセージ {変数}");
 | 🧠 | AI・モデル | `🧠 Behavior Type → Inference` |
 | 🎬 | 録画 | `🎬 Recording started` |
 | 📊 | 統計・グラフ | `📊 Training Monitor` |
-| 🎯 | ゴール・ターゲット | `🎯 Scenario: RollerBall` |
+| 🎯 | ゴール・ターゲット | `🎯 Scenario: MyScenario` |
 | ⚠️ | 警告 | `⚠️ Config file not found` |
 
 ---
@@ -193,10 +193,10 @@ public Vector3 GetRandomPosition(float yOffset = 0f)
 
 ```csharp
 /// <summary>
-/// 🎱 ローラーボール
-/// ボール（エージェント）が床上を転がってターゲットに到達するシンプルなRL環境。
+/// 🎬 Scenario Agent
+/// 対象シナリオ内で行動する代表的な RL エージェント。
 /// </summary>
-public class RollerBallAgent : BaseRLAgent
+public class ScenarioAgent : BaseRLAgent
 ```
 
 - 絵文字をクラスの `<summary>` 先頭に付けると、シナリオの雰囲気が分かりやすい

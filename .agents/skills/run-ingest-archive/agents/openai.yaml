@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Ingest Archive"
+  short_description: "Organize RL runs, artifacts, and adoption records."
+  default_prompt: "Use $run-ingest-archive to organize these RL training artifacts and adoption notes."

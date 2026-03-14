@@ -59,7 +59,7 @@
 **目的**: 手動操作で環境が正しく動くか確認
 
 **手順**:
-1. `Behavior Parameters > Behavior Type` を `Heuristic Only` に設定
+1. `Behavior Parameters > Behavior Type` を `Default` に設定
 2. Play モードで WASD/矢印キー操作
 3. 確認項目:
    - エージェントの動きが正しいか

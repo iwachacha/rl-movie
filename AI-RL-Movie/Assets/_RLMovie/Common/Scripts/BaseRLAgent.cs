@@ -2,6 +2,7 @@ using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace RLMovie.Common
 {
@@ -36,12 +37,26 @@ namespace RLMovie.Common
         private float _flashTimer = 0f;
         private Color _flashColor;
         private bool _isFlashing = false;
+        private bool _visualDebugEnabled = true;
 
         #region Unity Lifecycle
 
         protected override void Awake()
         {
             base.Awake();
+            _visualDebugEnabled = !IsHeadlessRuntime();
+
+            if (!_visualDebugEnabled)
+            {
+                if (showDebugInfo)
+                {
+                    Debug.Log($"[{name}] Visual debug is disabled for headless training runtime.");
+                }
+
+                showDebugInfo = false;
+                return;
+            }
+
             _agentRenderer = GetComponentInChildren<Renderer>();
             if (_agentRenderer != null)
             {
@@ -51,6 +66,11 @@ namespace RLMovie.Common
 
         protected virtual void Update()
         {
+            if (!_visualDebugEnabled)
+            {
+                return;
+            }
+
             if (_isFlashing)
             {
                 _flashTimer -= Time.deltaTime;
@@ -172,7 +192,7 @@ namespace RLMovie.Common
         /// <summary>エージェントの色を一瞬変える（ビジュアルフィードバック）</summary>
         protected void FlashColor(Color color, float duration = 0.3f)
         {
-            if (_agentRenderer == null) return;
+            if (!_visualDebugEnabled || _agentRenderer == null) return;
             _agentRenderer.material.color = color;
             _flashColor = color;
             _flashTimer = duration;
@@ -192,9 +212,10 @@ namespace RLMovie.Common
 
         #region Debug GUI
 
+#if !UNITY_SERVER
         private void OnGUI()
         {
-            if (!showDebugInfo) return;
+            if (!showDebugInfo || !_visualDebugEnabled) return;
 
             GUIStyle style = new GUIStyle(GUI.skin.label)
             {
@@ -216,6 +237,12 @@ namespace RLMovie.Common
                 GUI.Label(new Rect(x, y + 20, 200, 20),
                     $"Success: {SuccessRate:P1}", style);
             }
+        }
+#endif
+
+        private static bool IsHeadlessRuntime()
+        {
+            return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
         }
 
         #endregion

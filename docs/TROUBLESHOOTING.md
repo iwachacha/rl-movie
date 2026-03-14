@@ -60,7 +60,7 @@
 **対処**:
 1. エージェントの `Behavior Parameters > Behavior Name` を確認
 2. YAML の `behaviors:` キーと完全一致しているか確認
-3. 大文字小文字に注意（`RollerBallAgent` ≠ `rollerBallAgent`）
+3. 大文字小文字に注意（`ScenarioAgent` ≠ `scenarioAgent`）
 
 ### ❌ 学習が進まない（報酬が増えない）
 

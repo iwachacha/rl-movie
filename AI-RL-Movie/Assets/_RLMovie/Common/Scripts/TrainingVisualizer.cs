@@ -1,11 +1,12 @@
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace RLMovie.Common
 {
     /// <summary>
-    /// 学習過程をリアルタイムで可視化するUI。
-    /// シーンに配置して BaseRLAgent を参照させてください。
+    /// Lightweight runtime training monitor.
+    /// In server/headless builds the IMGUI path is compiled out entirely.
     /// </summary>
     public class TrainingVisualizer : MonoBehaviour
     {
@@ -18,66 +19,91 @@ namespace RLMovie.Common
         [SerializeField] private Color graphColor = new Color(0.2f, 0.8f, 0.4f);
         [SerializeField] private Color bgColor = new Color(0f, 0f, 0f, 0.7f);
 
-        private List<float> rewardHistory = new List<float>();
+        private readonly List<float> rewardHistory = new();
         private float maxReward = 1f;
         private float minReward = -1f;
-        private int lastEpisodeCount = 0;
+        private int lastEpisodeCount;
+        private bool runtimeUiEnabled = true;
 
-        // UI dimensions
+#if !UNITY_SERVER
         private readonly float panelWidth = 320f;
         private readonly float panelHeight = 200f;
         private readonly float panelMargin = 10f;
         private readonly float graphHeight = 100f;
-
-        private Texture2D _whiteTexture;
+        private Texture2D whiteTexture;
 
         private Texture2D WhiteTexture
         {
             get
             {
-                if (_whiteTexture == null)
+                if (whiteTexture == null)
                 {
-                    _whiteTexture = new Texture2D(1, 1);
-                    _whiteTexture.SetPixel(0, 0, Color.white);
-                    _whiteTexture.Apply();
+                    whiteTexture = new Texture2D(1, 1);
+                    whiteTexture.SetPixel(0, 0, Color.white);
+                    whiteTexture.Apply();
                 }
-                return _whiteTexture;
+
+                return whiteTexture;
+            }
+        }
+#endif
+
+        private void Awake()
+        {
+            runtimeUiEnabled = !IsHeadlessRuntime();
+            if (!runtimeUiEnabled)
+            {
+                enabled = false;
             }
         }
 
         private void Update()
         {
-            if (targetAgent == null) return;
-
-            // 新しいエピソードが完了したらグラフにデータ追加
-            if (targetAgent.TotalEpisodes > lastEpisodeCount)
+            if (!runtimeUiEnabled || targetAgent == null)
             {
-                lastEpisodeCount = targetAgent.TotalEpisodes;
-                rewardHistory.Add(targetAgent.CurrentEpisodeReward);
+                return;
+            }
 
-                if (rewardHistory.Count > maxDataPoints)
-                    rewardHistory.RemoveAt(0);
+            if (targetAgent.TotalEpisodes <= lastEpisodeCount)
+            {
+                return;
+            }
 
-                // グラフ範囲の更新
-                foreach (var r in rewardHistory)
+            lastEpisodeCount = targetAgent.TotalEpisodes;
+            rewardHistory.Add(targetAgent.CurrentEpisodeReward);
+
+            if (rewardHistory.Count > maxDataPoints)
+            {
+                rewardHistory.RemoveAt(0);
+            }
+
+            foreach (float reward in rewardHistory)
+            {
+                if (reward > maxReward)
                 {
-                    if (r > maxReward) maxReward = r;
-                    if (r < minReward) minReward = r;
+                    maxReward = reward;
+                }
+
+                if (reward < minReward)
+                {
+                    minReward = reward;
                 }
             }
         }
 
+#if !UNITY_SERVER
         private void OnGUI()
         {
-            if (!showUI || targetAgent == null) return;
+            if (!runtimeUiEnabled || !showUI || targetAgent == null)
+            {
+                return;
+            }
 
             float x = Screen.width - panelWidth - panelMargin;
             float y = panelMargin;
 
-            // パネル背景
             DrawRect(new Rect(x, y, panelWidth, panelHeight), bgColor);
 
-            // タイトル
             GUIStyle titleStyle = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 16,
@@ -86,9 +112,8 @@ namespace RLMovie.Common
                 alignment = TextAnchor.MiddleCenter
             };
 
-            GUI.Label(new Rect(x, y + 4, panelWidth, 24), "📊 Training Monitor", titleStyle);
+            GUI.Label(new Rect(x, y + 4, panelWidth, 24), "Training Monitor", titleStyle);
 
-            // 統計情報
             GUIStyle statStyle = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 12,
@@ -107,7 +132,6 @@ namespace RLMovie.Common
             GUI.Label(new Rect(statX, statY + 18, panelWidth, 18),
                 $"Current Reward: {targetAgent.CurrentEpisodeReward:F2}", statStyle);
 
-            // 報酬グラフ
             float graphX = x + 10;
             float graphY = statY + 42;
             float graphW = panelWidth - 20;
@@ -128,18 +152,17 @@ namespace RLMovie.Common
                     DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), graphColor, 2f);
                 }
 
-                // ゼロライン
                 float zeroY = graphY + graphHeight - ((0f - minReward) / range) * graphHeight;
                 if (zeroY > graphY && zeroY < graphY + graphHeight)
                 {
                     DrawLine(
                         new Vector2(graphX, zeroY),
                         new Vector2(graphX + graphW, zeroY),
-                        new Color(1f, 1f, 1f, 0.3f), 1f);
+                        new Color(1f, 1f, 1f, 0.3f),
+                        1f);
                 }
             }
 
-            // グラフラベル
             GUIStyle labelStyle = new GUIStyle(GUI.skin.label)
             {
                 fontSize = 10,
@@ -152,26 +175,32 @@ namespace RLMovie.Common
 
         private void DrawRect(Rect rect, Color color)
         {
-            Color prev = GUI.color;
+            Color previous = GUI.color;
             GUI.color = color;
             GUI.DrawTexture(rect, WhiteTexture);
-            GUI.color = prev;
+            GUI.color = previous;
         }
 
         private void DrawLine(Vector2 a, Vector2 b, Color color, float width)
         {
-            Color prev = GUI.color;
+            Color previous = GUI.color;
             GUI.color = color;
 
-            Vector2 d = b - a;
-            float angle = Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg;
+            Vector2 delta = b - a;
+            float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
 
-            var matrixBackup = GUI.matrix;
+            Matrix4x4 matrixBackup = GUI.matrix;
             GUIUtility.RotateAroundPivot(angle, a);
-            GUI.DrawTexture(new Rect(a.x, a.y - width / 2f, d.magnitude, width), WhiteTexture);
+            GUI.DrawTexture(new Rect(a.x, a.y - width / 2f, delta.magnitude, width), WhiteTexture);
             GUI.matrix = matrixBackup;
 
-            GUI.color = prev;
+            GUI.color = previous;
+        }
+#endif
+
+        private static bool IsHeadlessRuntime()
+        {
+            return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
         }
     }
 }

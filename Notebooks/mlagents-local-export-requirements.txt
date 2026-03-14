@@ -1,0 +1,2 @@
+# Legacy alias kept for local scripts and older notes.
+-r mlagents-training-requirements.txt

@@ -1,0 +1,67 @@
+# RL シナリオ契約テンプレート
+# Golden Spine を使う新規シナリオの最小スターター契約です。
+
+scenario_name: Template
+scene_name: Template
+agent_class: TemplateAgent
+behavior_name: TemplateAgent
+learning_goal: "スターター骨格ではエージェントが落下せずに Goal へ到達する基本方策を学習する"
+success_conditions:
+  - "エージェントと Goal の距離が goalDistance 未満になったら成功"
+failure_conditions:
+  - "EnvironmentManager の fallThreshold を下回ったら失敗"
+observation_contract:
+  vector_size: 13
+  items:
+    - "agent localPosition (3)"
+    - "goal localPosition (3)"
+    - "agent rigidbody linearVelocity (3)"
+    - "normalized direction to goal (3)"
+    - "distance to goal (1)"
+action_contract:
+  type: continuous
+  size: 2
+  mapping:
+    - "index 0: moveX"
+    - "index 1: moveZ"
+reward_rules:
+  terminal:
+    - "Success: +1.0"
+    - "Fail: -1.0"
+  dense:
+    - "distanceReward: -distanceToGoal * 0.001"
+  penalties:
+    - "step penalty: -0.0005"
+randomization_knobs:
+  - name: "envManager.randomizePositions"
+    purpose: "開始位置と Goal 位置のランダム化を有効にする"
+    default: "true"
+  - name: "envManager.randomizationStrength"
+    purpose: "ランダム化範囲の強さ"
+    default: "0.5"
+  - name: "moveForce"
+    purpose: "移動入力の効き方"
+    default: "1.0"
+difficulty_stages:
+  - name: Baseline
+    intent: "Goal への基本ナビゲーションを学ばせる"
+  - name: ThemeSwap
+    intent: "見た目を変えても同じ骨格で学習を維持する"
+  - name: Hard
+    intent: "障害物やルールを足して録画映えする挙動に拡張する"
+visual_theme:
+  style: "ビジュアルは自由に差し替えるが Goal と Agent の可読性を保つ"
+  readability: "色・サイズ・カメラで成功と失敗が UI なしでも読めるようにする"
+camera_plan:
+  default_view: "DefaultView を学習確認とプレイバックの基準カメラにする"
+  recording_cuts:
+    - "RecordWideLeft"
+    - "RecordWideRight"
+acceptance_criteria:
+  - "Heuristic で Goal 到達を再現できる"
+  - "ScenarioGoldenSpine の参照が埋まっている"
+  - "Validate Current Scenario が通る"
+  - "Build for Colab 後に Config 内へ training YAML と manifest が同梱される"
+  - "Inference Only で自然な 1 エピソード再生確認ができる"
+baseline_run: ""
+spec_version: 1
