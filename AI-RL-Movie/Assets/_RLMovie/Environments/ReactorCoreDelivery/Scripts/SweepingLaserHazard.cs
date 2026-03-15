@@ -1,10 +1,14 @@
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace RLMovie.Environments.ReactorCoreDelivery
 {
     [RequireComponent(typeof(BoxCollider))]
     public sealed class SweepingLaserHazard : MonoBehaviour
     {
+        [SerializeField] private ReactorCoreDeliveryCourse course;
         [SerializeField] private Transform pivot;
         [SerializeField] private Renderer beamRenderer;
         [SerializeField] private float sweepAngle = 70f;
@@ -15,7 +19,9 @@ namespace RLMovie.Environments.ReactorCoreDelivery
 
         public Vector3 HazardCenter => pivot != null ? pivot.position : transform.position;
 
-        public float Phase01 => Mathf.Repeat((Time.time * Mathf.Max(0.01f, _speedScale) / Mathf.Max(0.1f, cycleDuration)) + _phaseOffset01, 1f);
+        public float Phase01 => Mathf.Repeat(
+            (Time.time * Mathf.Max(0.01f, _speedScale) / Mathf.Max(0.1f, cycleDuration)) + _phaseOffset01,
+            1f);
 
         public float SweepAngle01
         {
@@ -24,6 +30,23 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                 float sweep01 = Mathf.PingPong(Phase01 * 2f, 1f);
                 return Mathf.Clamp01(sweep01);
             }
+        }
+
+        private void OnValidate()
+        {
+            ResolveCourseReference();
+
+#if UNITY_EDITOR
+            if (course != null)
+            {
+                EditorUtility.SetDirty(this);
+            }
+#endif
+        }
+
+        private void Awake()
+        {
+            ResolveCourseReference();
         }
 
         public void ResetCycle(float phaseOffset01, float speedScale)
@@ -44,6 +67,19 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             if (agent != null)
             {
                 agent.NotifyLaserHit();
+                return;
+            }
+
+            Rigidbody otherBody = other.attachedRigidbody ?? other.GetComponentInParent<Rigidbody>();
+            if (otherBody == null)
+            {
+                return;
+            }
+
+            ResolveCourseReference();
+            if (course != null && course.IsObjectiveCore(otherBody))
+            {
+                course.NotifyCoreLaserHit(HazardCenter);
             }
         }
 
@@ -67,6 +103,14 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                     material.EnableKeyword("_EMISSION");
                     material.SetColor("_EmissionColor", emission);
                 }
+            }
+        }
+
+        private void ResolveCourseReference()
+        {
+            if (course == null)
+            {
+                course = FindFirstObjectByType<ReactorCoreDeliveryCourse>();
             }
         }
     }

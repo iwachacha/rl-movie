@@ -1,204 +1,181 @@
 # Reactor Core Delivery Direction
 
-## Concept
+## 目的
 
-`Reactor Core Delivery` は、人間型の単体エージェントが発光コアを搬送し、
-研究所の危険区画を抜けて炉心ソケットまで運び込むシナリオ案です。
-見た目は大規模なSF施設での緊急任務ですが、学習の芯は
-`危険地帯を見て、安全なタイミングと経路を選び、ゴールへ到達する` に絞ります。
+`Reactor Core Delivery` は、暴走直前の炉心コアを回収し、障害を突破しながら最終ソケットまで運ぶシナリオとして再設計する。
 
-## Why This Idea
+目標は次の 3 点を同時に満たすこと。
 
-- 1本目として学習ループが素直で、実装が膨らみにくい
-- 回転レーザー、帯電床、開閉バリアだけでも高度な任務に見える
-- 成功も失敗も分かりやすく、動画でルールが伝わりやすい
-- 無料アセットで研究所の密度感、発光演出、緊急感を盛りやすい
+- 学習として破綻しない
+- 動画で見て気持ちいい
+- 見た目はリッチでも、学習上のルールは明快
 
-## Core Fantasy
+## 現状の問題
 
-視聴者に見せたいのは、
-小さな人型エージェントが危険な未来施設の中で
-「わずかな隙を読んで重要物資を届け切る」瞬間です。
+旧バージョンは scene 自体は壊れていないが、コース設計が散らかっていた。
 
-映像としては:
+- 分岐レーン、合流、サポートカート、最終スラロームが同時に入り、学習の本筋が見えにくい
+- `BlastDoor` は脇を抜けられる
+- `ShockFloor` は divider 側に事実上の安全帯が残る
+- Laser / Shock が agent には効く一方で、運搬対象の core を十分に統制していない
+- HUD が常に強く、通常プレイ時の見やすさを損ねる
+- カメラがシェル全体を見せすぎて、実際の攻略ラインより外装が目立つ
 
-- 赤い警告灯の中でコアを抱えて走る
-- レーザーの切れ目で一瞬止まり、次の区画へ滑り込む
-- 失敗すると感電やノックバックでコア搬送が崩れる
-- 成功時は炉心が起動して空間全体が光る
+## V2 の方針
 
-## Recommended First Version
+V2 では分岐と補助ギミックを削り、1 本の mandatory spine に集約する。
 
-V1 は、1ループが明快な短中距離搬送に絞る。
+`Pickup Bay -> Laser Gate -> Shock Gate -> Full-Width Blast Door -> Short Socket Funnel`
 
-- 単一の研究所通路アリーナ
-- スタート地点でコアを取得済み、またはすぐ拾える配置
-- 危険要素は 2〜3 種だけに制限
-- ゴールは 1 つの明確な炉心ソケット
-- エピソードは短めで、失敗時は即リセット
+この一本ルートの中で、
 
-V1 の危険要素候補:
+- core を転がしてもよい
+- grab して持ち運んでもよい
+- ただし hazard は core の運搬状態そのものに干渉する
 
-- `Sweeping Laser`: 一定速度で往復する可視レーザー
-- `Shock Floor`: 一定周期で通電する床
-- `Blast Door`: 開閉タイミングだけ読む必要がある遮断扉
+という構造にする。
 
-## Why This Scope Is Important
+## コース設計
 
-初回から「探索」「長距離ルート」「複数目的地」を入れると、
-学習も調整も一気に重くなります。
+### 1. Pickup Bay
 
-この案の面白さは、
-`危険の可視化`
-`タイミング判断`
-`安全ルート選択`
-`ゴール直前の緊張感`
-にあります。
+- 開始直後は loose core が pickup dock に置かれている
+- agent はまず core に接近し、押し始めるか grab する
+- ここは読みやすさ優先で、最初の接触が分かりやすい平場にする
 
-まずは短い任務をしっかり成立させる方が、
-動画としても、次段階の拡張としても強いです。
+### 2. Laser Gate
 
-## Emergence Levers
+- 一本道の corridor 全体を横切る beam にする
+- beam は待つか、タイミングを見て抜けるか、分かりやすい判断になるようにする
+- beam 接触は agent だけでなく core にも意味を持たせる
+- core が当たった場合は release / knockback が起き、雑な carry を許さない
 
-意外な動きを引き出したいなら、次の競合を仕込む。
+### 3. Shock Gate
 
-- `Speed vs Safety`: 最短距離を取るか、安全な遠回りを取るか
-- `Commit vs Wait`: 早めに突っ込むか、1周期待つか
-- `Lane Choice`: 危険種別の違うレーンをどちらで抜けるか
-- `Recovery`: 軽いノックバック後に立て直すか、そのまま押し切るか
+- レーン全幅が危険領域になるようにして、恒久的な safe strip をなくす
+- shock は単なる減点ではなく transport disruption として機能させる
+- 持っている最中に被弾したら forced release
+- loose core にも impulse が入り、運搬の再建が必要になる
 
-## Visual Hooks
+### 4. Blast Door
 
-- 発光コアが常に画面の主役になる
-- 無料SFアセットで配管、端末、発光床、警告灯を密に置ける
-- レーザーや通電床で危険がひと目で分かる
-- 成功時に炉心が起動し、空間が一気に明るくなる
-- 失敗時も「危険施設に弾かれた」絵になる
+- side bypass を完全に潰した full-width gate にする
+- 扉前には短い ante-room を置き、待ち判断が動画でも読みやすい構図にする
+- 開いている時だけ素直に通せる、明快な timing gate にする
 
-## Asset Plan
+### 5. Socket Funnel
 
-今回の案は、無料アセット込みで豪華さを出す前提で確定した。
-2026-03-14 時点の前提では、まず次の 4 つを採用候補の正本とする。
+- ゴール直前は短く絞った funnel で締める
+- ここでは細かい slalom ではなく、core を安定して seat させることに集中させる
+- 成功条件は `core seats stably in ReactorSocket`
 
-- `FREE Demo: Low Poly Sci-Fi Station / Cosmic Retro`
-- `Creative Characters FREE - Animated Low Poly 3D Models`
-- `Human Basic Motions FREE`
-- `Simple FX - Cartoon Particles`
+## 操作と観測
 
-参考リンク:
+### Action
 
-- [`FREE Demo: Low Poly Sci-Fi Station / Cosmic Retro`](https://assetstore.unity.com/packages/3d/environments/sci-fi/free-demo-low-poly-sci-fi-station-cosmic-retro-323347)
-- [`Creative Characters FREE - Animated Low Poly 3D Models`](https://assetstore.unity.com/packages/3d/characters/humanoids/creative-characters-free-animated-low-poly-3d-models-304841)
-- [`Human Basic Motions FREE`](https://assetstore.unity.com/packages/3d/animations/human-basic-motions-free-154271)
-- [`Simple FX - Cartoon Particles`](https://assetstore.unity.com/packages/vfx/particles/simple-fx-cartoon-particles-67834)
+- hybrid action
+- continuous 2:
+  - strafe
+  - forward/back
+- discrete branch size 3:
+  - `0 = no-op`
+  - `1 = grab`
+  - `2 = release`
 
-補助候補:
+toggle ではなく explicit command にすることで、policy の挙動を安定させる。
 
-- `3D Scifi Kit Starter Kit`
+### Core Carry
 
-補助候補リンク:
+- `CarryAnchor` を agent 側に持つ
+- core は rigidbody のまま維持する
+- 持っている時は joint で拘束する
+- release 後はすぐに通常物理へ戻る
+- shock 時は auto-release する
 
-- [`3D Scifi Kit Starter Kit`](https://assetstore.unity.com/packages/3d/environments/3d-scifi-kit-starter-kit-92152)
+### Observation
 
-`3D Scifi Kit Starter Kit` は現在 repo 内の
-`AI-RL-Movie/Assets/ThirdParty/_Creepy_Cat/` に取り込み済み。
-ただし Asset Store 上では `URP not compatible` 表記で、
-実際の同梱物にも Built-In / HDRP 向け package や custom shader が含まれる。
+vector observation は 39 に絞る。
 
-そのため本プロジェクトでは、
-「主力の土台」ではなく
-`通路骨格を足すための補助アセット`
-として扱う。
+- agent / core / socket の相対情報
+- current mandatory checkpoint
+- laser / shock / door の位相
+- dock readiness
+- countdown
+- shock recovery
+- `isHoldingCore`
+- `grabCooldown01`
+- gate progress
 
-## Asset Usage
+support cart の観測は削除する。
 
-各アセットの使いどころは、最初から役割を固定しておく。
+## 報酬設計
 
-- `Cosmic Retro`: 通路壁、配管、制御端末、炉心周辺の背景、警告灯まわりの密度出し
-- `Creative Characters FREE`: 主役となる人間型エージェントの見た目ベース
-- `Human Basic Motions FREE`: 待機、走行、簡易リアクションなど録画で見栄えを補強する動き
-- `Simple FX - Cartoon Particles`: 通電、火花、起動成功、軽い被弾感などの視覚演出
-- `3D Scifi Kit Starter Kit`: 通路骨格の壁・床・扉・警告サインを足したい時だけ補助採用する
+報酬は「正しい本筋」に沿って整理する。
 
-シーン内での配置意図:
+- approach reward
+- core-to-socket progress reward
+- dock readiness reward
+- core seat bonus
+- success + time bonus
+- laser, shock, lost core, timeout の明確な penalty
+- core が laser / shock / blast-door の 3 gate を順に越えた時の bonus
 
-- `スタート区画`: 端末、搬送ラック、静かな照明で「任務開始前」の空気を作る
-- `危険区画`: レーザー、通電床、警告灯、火花で危険を読みやすく見せる
-- `ゴール区画`: 炉心ソケット、強い発光、成功時の起動演出でクライマックスを作る
+サポートカート由来の報酬や zone ロジックは削除する。
 
-`3D Scifi Kit Starter Kit` を使う場所:
+## Curriculum
 
-- `通路の外殻`: 壁、床、ドア枠、警告サインで「施設そのもの」の骨格を作る
-- `危険区画の縁`: danger sign、フェンス、床パネルで危険レーンの輪郭を強調する
-- `主役以外の背景`: 当たり判定に関係しない補助壁面や天井まわりの密度出しに限定する
+lesson は 3 段階にする。
 
-逆に V1 では、次は主役にしない:
+### PickupAndGrab
 
-- shader 依存が強そうなガラス、発光ライト、空、demo scene 全体
-- hazard 判定に直結する床やレーザーの可読レイヤー
-- 見た目が崩れた prefab の無理な継続採用
+- core へ近づく
+- 押す / grab する
+- pickup bay を安定して出る
 
-## Import Priority
+### MandatoryGates
 
-導入順は、依存度とやり直しコストの低さを優先する。
+- laser
+- shock
+- blast door
 
-1. `Cosmic Retro`
-2. `Creative Characters FREE`
-3. `Human Basic Motions FREE`
-4. `Simple FX - Cartoon Particles`
-5. `3D Scifi Kit Starter Kit` は取り込み済みだが、scene 採用は URP spot-check 後
+この 3 つを順番に突破する流れを学ばせる。
 
-この順にすると、まず環境のトーンとキャラ縮尺を固め、
-その後で動きと演出を足せる。
+### DeliveryPressure
 
-実運用では、
-`Cosmic Retro で安全に密度を出す`
-`_Creepy_Cat で通路骨格を必要箇所だけ補う`
-の順がよい。
+- timing を本番寄りにする
+- deadline を詰める
+- 最後の dock まで安定して完走させる
 
-## Environment Build Policy
+`support_prop_jitter` は削除し、randomization は spawn jitter と 3 gate の timing 系に限定する。
 
-Reactor Core Delivery の V1 では、
-環境アセットの責務を次のように分ける。
+## ビジュアルと録画
 
-- `Cosmic Retro`: 端末、ロッカー、モニター、箱、制御パネルなどの安全な背景密度
-- `3D Scifi Kit Starter Kit`: 壁、床、扉、フェンス、warning sign などの大型通路モジュール
-- `自前メッシュ / 自前Collider`: レーザー、通電床、失敗判定、可読性が必要な gameplay 要素
+### Scene
 
-この分離が重要なのは、
-URP 互換が怪しい asset をそのまま hazard 本体に使うと、
-見た目の崩れが学習課題の可読性まで壊すため。
+- 外装シェルは残しつつ、実際の playable corridor は scenario-owned collider で細くする
+- 視線が route に自然と乗るよう、床ラインと frame を整理する
+- props は off-lane dressing に留め、攻略ノイズにはしない
 
-V1 の基本方針は:
+### Camera
 
-- 通路の輪郭は `_Creepy_Cat` prefab を候補にする
-- 通らせたいレーンと危険判定は自前実装で確定する
-- `_Creepy_Cat` 側で見た目が崩れた箇所は `Cosmic Retro` またはシンプル geometry に置き換える
+- default view は corridor 内部の high oblique
+- recording は 2 follow cuts に絞る
+- 外装よりも courier と glowing core が常に主役に見えることを優先する
 
-## Compatibility Notes
+### HUD
 
-- 本プロジェクトは `URP`
-- `Cosmic Retro` は URP 前提で主力候補にしやすい
-- `Creative Characters FREE` と `Human Basic Motions FREE` は用途上の相性を優先して採用候補にしているため、import 後に Rig や Avatar の整合確認は必要
-- `Simple FX - Cartoon Particles` は演出用で、見た目が合わない場合は一部だけ使う
-- `3D Scifi Kit Starter Kit` は `URP not compatible` 表記のため、入れる場合はマテリアル修正コストを見込む
-- 取り込み済みの `_Creepy_Cat` には demo scene、audio、custom shader、Built-In/HDRP 向け package も含まれる
-- まずは `Walls` `Floors` `Doors` `Symbols` など静的モジュールだけ spot-check し、OK な prefab だけ使う
-- `Glass` `Lights` `Skybox` `Camera Profile` `Turn_Move.cs` は V1 の必須依存にしない
+- 通常時は corner countdown だけ
+- critical phase または meltdown 時だけ siren 演出を強める
+- 常時フル画面警報はやめる
 
-## Risks To Avoid In V1
+## 受け入れ基準
 
-- コア搬送を物理ベースの難しい把持にしない
-- 危険種類を増やしすぎない
-- 通路分岐を増やしすぎて探索問題にしない
-- 暗すぎる画面にしない
-- SF演出を増やしすぎて、当たり判定や危険判定が読めなくならない
-
-## Good Next Step
-
-次にやるなら、これを `scenario-spec` として落とし、
-観測、行動、報酬、失敗条件、ランダム化、カメラでの見せ方を定義する。
-
-その際は特に、
-`V1 は搬送の見た目を保ちながら、実際の学習は堅いナビゲーション課題にする`
-方針を守るのが重要です。
+- heuristic で roll only と grab/release carry の両方で 1 回ずつクリアできる
+- core は laser, shock, blast door を順に越えないと socket に届かない
+- laser contact with core が意味を持つ
+- shock が held transport を壊せる
+- blast door に side bypass がない
+- reset を繰り返しても courier / core / hazard phase / hold state がきれいに戻る
+- `Validate Current Scenario` が通る
+- `Build for Colab (Current Scene)` に最新 manifest / config が含まれる
+- `Inference Only` 録画で courier と core が読みやすく、debug UI が出ない

@@ -1,44 +1,39 @@
-using System;
-using System.Collections.Generic;
-using RLMovie.Common;
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using UnityEngine;
 using Random = UnityEngine.Random;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 namespace RLMovie.Environments.ReactorCoreDelivery
 {
     /// <summary>
-    /// Owns the short corridor contract and the physical reactor core that must be escorted into the socket.
+    /// Owns the mandatory delivery spine, the loose reactor core, and the carry/grab state.
     /// </summary>
     public sealed class ReactorCoreDeliveryCourse : MonoBehaviour
     {
-        public const int ObservationSize = 52;
-        private const int SupportObservationSlots = 3;
-        private const int SupportObservationStride = 5;
+        public const int ObservationSize = 39;
 
         [Header("=== Navigation Anchors ===")]
         [SerializeField] private Transform startAnchor;
-        [SerializeField] private Transform mergeAnchor;
         [SerializeField] private Transform coreSpawnAnchor;
+        [SerializeField] private Transform laserCheckpoint;
+        [SerializeField] private Transform shockCheckpoint;
+        [SerializeField] private Transform doorCheckpoint;
         [SerializeField] private Transform goalSocket;
 
         [Header("=== Objective Core ===")]
         [SerializeField] private Rigidbody objectiveCore;
         [SerializeField] private Renderer coreRenderer;
         [SerializeField] private float coreDockDistance = 0.72f;
-        [SerializeField] private float coreEscortSwitchDistance = 0.55f;
         [SerializeField] private float coreDockSettleTime = 0.35f;
-        [SerializeField] private float coreDockMaxPlanarSpeed = 0.45f;
-
-        [Header("=== Tactical Support Props ===")]
-        [SerializeField] private Rigidbody[] supportProps = Array.Empty<Rigidbody>();
-        [SerializeField] private Transform[] supportPropSpawnAnchors = Array.Empty<Transform>();
-        [SerializeField] private float supportPropSpawnJitterX = 0.45f;
-        [SerializeField] private float supportPropSpawnJitterZ = 0.28f;
+        [SerializeField] private float coreDockMaxPlanarSpeed = 0.36f;
+        [SerializeField] private float coreEscortSwitchDistance = 0.55f;
+        [SerializeField] private float grabCooldown = 0.32f;
+        [SerializeField] private float heldLinearDamping = 5.2f;
+        [SerializeField] private float heldAngularDamping = 8.4f;
+        [SerializeField] private float laserCoreKnockback = 4.2f;
+        [SerializeField] private float shockCoreKnockback = 3.3f;
+        [SerializeField] private float shockCoreLift = 1.4f;
+        [SerializeField] private float coreShockRecoverDuration = 0.32f;
 
         [Header("=== Hazards ===")]
         [SerializeField] private SweepingLaserHazard laserHazard;
@@ -58,18 +53,23 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         [SerializeField] private Transform meltdownOrigin;
 
         [Header("=== Meltdown Pressure ===")]
-        [SerializeField] private float baseDeliveryDeadline = 21.5f;
+        [SerializeField] private float baseDeliveryDeadline = 20.5f;
         [SerializeField] private float minDeliveryDeadline = 12f;
         [SerializeField] private float meltdownCoreBlastForce = 8.8f;
         [SerializeField] private float meltdownCoreLiftForce = 6.4f;
 
         [Header("=== Course Bounds ===")]
-        [SerializeField] private float courseHalfWidth = 4.75f;
+        [SerializeField] private float courseHalfWidth = 2.35f;
         [SerializeField] private float progressStartZ = -10f;
         [SerializeField] private float progressEndZ = 18f;
-        [SerializeField] private float spawnJitterX = 0.75f;
-        [SerializeField] private float spawnJitterZ = 0.35f;
-        [SerializeField] private float coreOutOfBoundsPadding = 1f;
+        [SerializeField] private float spawnJitterX = 0.35f;
+        [SerializeField] private float spawnJitterZ = 0.28f;
+        [SerializeField] private float coreOutOfBoundsPadding = 0.75f;
+
+        [Header("=== Gate Thresholds ===")]
+        [SerializeField] private float laserGateZ = 0.2f;
+        [SerializeField] private float shockGateZ = 7.0f;
+        [SerializeField] private float doorGateZ = 13.0f;
 
         private readonly Color _defaultGlowBase = new Color(0.10f, 0.22f, 0.28f);
         private readonly Color _defaultGlowEmission = new Color(0.00f, 0.10f, 0.15f);
@@ -79,6 +79,8 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         private readonly Color _defaultCoreEmission = new Color(0.18f, 0.95f, 1.35f);
         private readonly Color _escortCoreBase = new Color(0.24f, 0.92f, 1.08f);
         private readonly Color _escortCoreEmission = new Color(0.24f, 1.18f, 1.58f);
+        private readonly Color _heldCoreBase = new Color(0.95f, 0.88f, 0.32f);
+        private readonly Color _heldCoreEmission = new Color(1.45f, 1.10f, 0.18f);
         private readonly Color _dockedCoreBase = new Color(0.30f, 1.04f, 1.18f);
         private readonly Color _dockedCoreEmission = new Color(0.30f, 1.42f, 1.84f);
         private readonly Color _successCoreBase = new Color(0.38f, 1.20f, 1.32f);
@@ -91,17 +93,26 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         private bool _escortPhaseStarted;
         private bool _coreDocked;
         private bool _coreDockBonusPending;
-        private bool _coreDockBonusConsumed;
         private bool _timeoutPending;
         private bool _meltdownTriggered;
+        private bool _coreLaserPenaltyPending;
+        private bool _coreShockPenaltyPending;
         private float _coreDockSettleTimer;
         private float _agentToCoreReferenceDistance = 1f;
         private float _coreGoalReferenceDistance = 1f;
         private float _deliveryDeadline = 1f;
         private float _deliveryTimerRemaining = 1f;
+        private float _grabCooldownRemaining;
+        private float _coreShockRecoverRemaining;
+        private float _baseCoreLinearDamping = -1f;
+        private float _baseCoreAngularDamping = -1f;
         private Vector3 _countdownFillRestScale = Vector3.one;
+        private FixedJoint _holdJoint;
+        private Rigidbody _carrierBody;
 
         public bool IsCoreDocked => _coreDocked;
+        public bool IsHoldingCore => _holdJoint != null;
+        public float GrabCooldown01 => grabCooldown <= 0f ? 0f : Mathf.Clamp01(_grabCooldownRemaining / grabCooldown);
         public float CoreDockReadiness01 => _coreDocked
             ? 1f
             : coreDockSettleTime <= 0f
@@ -113,7 +124,6 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         public float TimeRemainingSeconds => Mathf.Max(0f, _deliveryTimerRemaining);
         public bool IsAlertActive => !_coreDocked && !_meltdownTriggered && _deliveryTimerRemaining > 0f;
         public bool IsMeltdownTriggered => _meltdownTriggered;
-
         public Transform ObjectiveCoreTransform => objectiveCore != null ? objectiveCore.transform : null;
         public Vector3 MeltdownOrigin => meltdownOrigin != null
             ? meltdownOrigin.position
@@ -123,20 +133,7 @@ namespace RLMovie.Environments.ReactorCoreDelivery
 
         private void Awake()
         {
-            EnsureSupportPropsDiscovered();
-        }
-
-        private void OnValidate()
-        {
-            int previousSupportCount = supportProps != null ? supportProps.Length : 0;
-            EnsureSupportPropsDiscovered();
-
-#if UNITY_EDITOR
-            if (supportProps != null && supportProps.Length != previousSupportCount)
-            {
-                EditorUtility.SetDirty(this);
-            }
-#endif
+            CacheCorePhysicsDefaults();
         }
 
         public void ResetEpisode(ReactorCoreDeliveryAgent agent)
@@ -146,25 +143,24 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                 return;
             }
 
-            EnsureSupportPropsDiscovered();
+            CacheCorePhysicsDefaults();
 
-            float randomizationStrength = GetEnvironmentParameter("randomization_strength", 0.45f);
-            float phaseJitter = GetEnvironmentParameter("phase_jitter", 0.30f);
+            float randomizationStrength = GetEnvironmentParameter("randomization_strength", 0.28f);
+            float phaseJitter = GetEnvironmentParameter("phase_jitter", 0.24f);
             float laserSpeedScale = GetEnvironmentParameter("laser_speed_scale", 1.0f);
             float shockActiveScale = GetEnvironmentParameter("shock_active_scale", 1.0f);
             float doorOpenScale = GetEnvironmentParameter("door_open_scale", 1.0f);
             float deadlineScale = GetEnvironmentParameter("delivery_deadline_scale", 1.0f);
-            float supportPropJitter = GetEnvironmentParameter("support_prop_jitter", 0.25f);
 
             Vector3 startPosition = startAnchor.position;
             startPosition.x += Random.Range(-spawnJitterX, spawnJitterX) * randomizationStrength;
             startPosition.z += Random.Range(-spawnJitterZ, spawnJitterZ) * randomizationStrength;
 
             agent.transform.position = startPosition;
-            agent.transform.rotation = Quaternion.identity;
+            agent.transform.rotation = startAnchor.rotation;
 
+            DestroyHoldJointImmediate();
             ResetObjectiveCore();
-            ResetSupportProps(supportPropJitter);
 
             laserHazard?.ResetCycle(Random.Range(0f, phaseJitter), laserSpeedScale);
             shockFloorHazard?.ResetCycle(Random.Range(0f, phaseJitter), shockActiveScale);
@@ -173,10 +169,13 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             _escortPhaseStarted = false;
             _coreDocked = false;
             _coreDockBonusPending = false;
-            _coreDockBonusConsumed = false;
             _timeoutPending = false;
             _meltdownTriggered = false;
+            _coreLaserPenaltyPending = false;
+            _coreShockPenaltyPending = false;
             _coreDockSettleTimer = 0f;
+            _grabCooldownRemaining = 0f;
+            _coreShockRecoverRemaining = 0f;
             _agentToCoreReferenceDistance = Mathf.Max(0.75f, PlanarDistance(startPosition, GetCorePosition()));
             _coreGoalReferenceDistance = Mathf.Max(4f, PlanarDistance(GetCorePosition(), goalSocket != null ? goalSocket.position : GetCorePosition()));
             _deliveryDeadline = Mathf.Max(minDeliveryDeadline, baseDeliveryDeadline * Mathf.Max(0.55f, deadlineScale));
@@ -197,13 +196,23 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         {
             bool wasDocked = _coreDocked;
 
+            if (_grabCooldownRemaining > 0f)
+            {
+                _grabCooldownRemaining = Mathf.Max(0f, _grabCooldownRemaining - Time.fixedDeltaTime);
+            }
+
+            if (_coreShockRecoverRemaining > 0f)
+            {
+                _coreShockRecoverRemaining = Mathf.Max(0f, _coreShockRecoverRemaining - Time.fixedDeltaTime);
+            }
+
             if (!_escortPhaseStarted && coreSpawnAnchor != null)
             {
-                _escortPhaseStarted = PlanarDistance(GetCorePosition(), coreSpawnAnchor.position) >= coreEscortSwitchDistance;
+                _escortPhaseStarted = IsHoldingCore || PlanarDistance(GetCorePosition(), coreSpawnAnchor.position) >= coreEscortSwitchDistance;
             }
 
             bool isCoreInsideDockZone = ComputeCoreInsideDockZone();
-            bool coreIsSettled = isCoreInsideDockZone && GetCorePlanarSpeed() <= coreDockMaxPlanarSpeed;
+            bool coreIsSettled = !IsHoldingCore && isCoreInsideDockZone && GetCorePlanarSpeed() <= coreDockMaxPlanarSpeed;
 
             if (coreIsSettled)
             {
@@ -219,15 +228,9 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             _coreDocked = isCoreInsideDockZone
                 && (coreDockSettleTime <= 0f || _coreDockSettleTimer >= coreDockSettleTime);
 
-            if (_coreDocked)
-            {
-                _escortPhaseStarted = true;
-            }
-
-            if (!wasDocked && _coreDocked && !_coreDockBonusConsumed)
+            if (!wasDocked && _coreDocked)
             {
                 _coreDockBonusPending = true;
-                _coreDockBonusConsumed = true;
             }
 
             if (!_coreDocked && !_meltdownTriggered && _deliveryTimerRemaining > 0f)
@@ -254,8 +257,8 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             Vector3 coreDelta = corePosition - worldPosition;
             Vector3 goalDelta = goalSocket != null ? goalSocket.position - worldPosition : Vector3.zero;
             Vector3 coreGoalDelta = goalSocket != null ? goalSocket.position - corePosition : Vector3.zero;
-            Transform currentAnchor = GetCurrentAnchor(corePosition);
-            Vector3 anchorDelta = currentAnchor != null ? currentAnchor.position - worldPosition : Vector3.zero;
+            Transform checkpoint = GetCurrentCheckpoint(corePosition);
+            Vector3 checkpointDelta = checkpoint != null ? checkpoint.position - worldPosition : Vector3.zero;
 
             sensor.AddObservation(Mathf.Clamp((worldPosition.x - transform.position.x) / courseHalfWidth, -1f, 1f));
             sensor.AddObservation(Mathf.Clamp(Mathf.InverseLerp(progressStartZ, progressEndZ, worldPosition.z) * 2f - 1f, -1f, 1f));
@@ -277,23 +280,20 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             sensor.AddObservation(Mathf.Clamp(coreVelocity.x / 6f, -1f, 1f));
             sensor.AddObservation(Mathf.Clamp(coreVelocity.z / 6f, -1f, 1f));
 
-            sensor.AddObservation(Mathf.Clamp(anchorDelta.x / courseHalfWidth, -1f, 1f));
-            sensor.AddObservation(Mathf.Clamp(anchorDelta.z / 10f, -1f, 1f));
+            sensor.AddObservation(Mathf.Clamp(checkpointDelta.x / courseHalfWidth, -1f, 1f));
+            sensor.AddObservation(Mathf.Clamp(checkpointDelta.z / 10f, -1f, 1f));
 
             AppendLaserObservations(sensor, worldPosition);
             AppendShockObservations(sensor, worldPosition);
             AppendDoorObservations(sensor, worldPosition);
-            AppendSupportPropObservations(sensor, worldPosition);
 
             sensor.AddObservation(CoreDockReadiness01);
             sensor.AddObservation(_coreDocked ? 1f : 0f);
             sensor.AddObservation(TimeRemaining01);
             sensor.AddObservation(shockRecover01);
-        }
-
-        public float GetProgress01(Vector3 worldPosition)
-        {
-            return Mathf.Clamp01(Mathf.InverseLerp(progressStartZ, progressEndZ, worldPosition.z));
+            sensor.AddObservation(IsHoldingCore ? 1f : 0f);
+            sensor.AddObservation(GrabCooldown01);
+            sensor.AddObservation(GetCoreGateIndex() / 3f);
         }
 
         public float GetAgentToCoreProgress01(Vector3 worldPosition)
@@ -321,37 +321,25 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             return _escortPhaseStarted;
         }
 
-        public int GetCoreZoneIndex()
+        public int GetCoreGateIndex()
         {
-            Vector3 worldPosition = GetCorePosition();
-            if (worldPosition.z < -4f)
+            Vector3 corePosition = GetCorePosition();
+            if (corePosition.z < laserGateZ)
             {
                 return 0;
             }
 
-            if (worldPosition.z < 8f)
+            if (corePosition.z < shockGateZ)
             {
                 return 1;
             }
 
-            if (worldPosition.z < 14f)
+            if (corePosition.z < doorGateZ)
             {
                 return 2;
             }
 
             return 3;
-        }
-
-        public bool IsAgentNearGoal(Vector3 worldPosition, float goalDistance)
-        {
-            if (goalSocket == null)
-            {
-                return false;
-            }
-
-            Vector3 planarPosition = new Vector3(worldPosition.x, 0f, worldPosition.z);
-            Vector3 planarGoal = new Vector3(goalSocket.position.x, 0f, goalSocket.position.z);
-            return Vector3.Distance(planarPosition, planarGoal) <= goalDistance;
         }
 
         public bool IsAgentNearCore(Vector3 worldPosition, float distance)
@@ -362,11 +350,6 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             }
 
             return PlanarDistance(worldPosition, GetCorePosition()) <= distance;
-        }
-
-        public bool CanCompleteDelivery(Vector3 worldPosition, float insertDistance)
-        {
-            return _coreDocked && IsAgentNearGoal(worldPosition, insertDistance);
         }
 
         public bool IsCoreOutOfBounds()
@@ -382,6 +365,79 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             return lateralOffset > courseHalfWidth + coreOutOfBoundsPadding
                 || corePosition.z < progressStartZ - (coreOutOfBoundsPadding * 2f)
                 || corePosition.z > progressEndZ + (coreOutOfBoundsPadding * 2f);
+        }
+
+        public bool TryGrabCore(Rigidbody carrierBody, Transform carryAnchor, float maxDistance)
+        {
+            if (carrierBody == null || carryAnchor == null || objectiveCore == null || _coreDocked || _meltdownTriggered || IsHoldingCore)
+            {
+                return false;
+            }
+
+            if (_grabCooldownRemaining > 0f)
+            {
+                return false;
+            }
+
+            if (Vector3.Distance(carryAnchor.position, objectiveCore.position) > maxDistance)
+            {
+                return false;
+            }
+
+            DestroyHoldJointImmediate();
+
+            _holdJoint = objectiveCore.gameObject.AddComponent<FixedJoint>();
+            _holdJoint.autoConfigureConnectedAnchor = false;
+            _holdJoint.connectedBody = carrierBody;
+            _holdJoint.connectedAnchor = carrierBody.transform.InverseTransformPoint(carryAnchor.position);
+            _holdJoint.enableCollision = false;
+            _holdJoint.breakForce = float.PositiveInfinity;
+            _holdJoint.breakTorque = float.PositiveInfinity;
+
+            objectiveCore.linearVelocity *= 0.2f;
+            objectiveCore.angularVelocity *= 0.1f;
+            objectiveCore.linearDamping = heldLinearDamping;
+            objectiveCore.angularDamping = heldAngularDamping;
+
+            _carrierBody = carrierBody;
+            _escortPhaseStarted = true;
+            UpdateObjectiveVisuals(delivered: false);
+            return true;
+        }
+
+        public bool ReleaseHeldCore(bool startCooldown)
+        {
+            return ReleaseHeldCore(startCooldown, Vector3.zero);
+        }
+
+        public bool ForceReleaseHeldCore(Vector3 releaseImpulse)
+        {
+            return ReleaseHeldCore(true, releaseImpulse);
+        }
+
+        public bool ReleaseHeldCore(bool startCooldown, Vector3 releaseImpulse)
+        {
+            if (!IsHoldingCore || objectiveCore == null)
+            {
+                return false;
+            }
+
+            DestroyHoldJointImmediate();
+            RestoreCorePhysicsDefaults();
+
+            if (releaseImpulse.sqrMagnitude > 0.0001f)
+            {
+                objectiveCore.AddForce(releaseImpulse, ForceMode.VelocityChange);
+            }
+
+            _carrierBody = null;
+            if (startCooldown)
+            {
+                _grabCooldownRemaining = grabCooldown;
+            }
+
+            UpdateObjectiveVisuals(delivered: false);
+            return true;
         }
 
         public bool TryConsumeCoreDockBonus()
@@ -406,6 +462,93 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             return true;
         }
 
+        public bool TryConsumeCoreLaserPenalty()
+        {
+            if (!_coreLaserPenaltyPending)
+            {
+                return false;
+            }
+
+            _coreLaserPenaltyPending = false;
+            return true;
+        }
+
+        public bool TryConsumeCoreShockPenalty()
+        {
+            if (!_coreShockPenaltyPending)
+            {
+                return false;
+            }
+
+            _coreShockPenaltyPending = false;
+            return true;
+        }
+
+        public bool IsObjectiveCore(Rigidbody body)
+        {
+            return body != null && body == objectiveCore;
+        }
+
+        public void NotifyCoreLaserHit(Vector3 hazardOrigin)
+        {
+            if (objectiveCore == null || _meltdownTriggered || _coreDocked)
+            {
+                return;
+            }
+
+            Vector3 blastDirection = GetCorePosition() - hazardOrigin;
+            blastDirection.y = 0f;
+
+            if (blastDirection.sqrMagnitude < 0.001f)
+            {
+                blastDirection = Vector3.back;
+            }
+
+            Vector3 impulse = (blastDirection.normalized * laserCoreKnockback) + (Vector3.back * 0.8f);
+            if (IsHoldingCore)
+            {
+                ReleaseHeldCore(true, impulse);
+            }
+            else
+            {
+                objectiveCore.AddForce(impulse, ForceMode.VelocityChange);
+            }
+
+            _coreLaserPenaltyPending = true;
+            NotifyShockHit();
+        }
+
+        public void NotifyCoreShockPulse(Vector3 hazardOrigin)
+        {
+            if (objectiveCore == null || _meltdownTriggered || _coreDocked || _coreShockRecoverRemaining > 0f)
+            {
+                return;
+            }
+
+            _coreShockRecoverRemaining = coreShockRecoverDuration;
+
+            Vector3 blastDirection = GetCorePosition() - hazardOrigin;
+            blastDirection.y = 0f;
+
+            if (blastDirection.sqrMagnitude < 0.001f)
+            {
+                blastDirection = Vector3.right;
+            }
+
+            Vector3 impulse = (blastDirection.normalized * shockCoreKnockback) + (Vector3.up * shockCoreLift);
+            if (IsHoldingCore)
+            {
+                ReleaseHeldCore(true, impulse);
+            }
+            else
+            {
+                objectiveCore.AddForce(impulse, ForceMode.VelocityChange);
+            }
+
+            _coreShockPenaltyPending = true;
+            NotifyShockHit();
+        }
+
         public void TriggerMeltdown()
         {
             if (_meltdownTriggered)
@@ -415,6 +558,11 @@ namespace RLMovie.Environments.ReactorCoreDelivery
 
             _meltdownTriggered = true;
             _timeoutPending = false;
+
+            if (IsHoldingCore)
+            {
+                ReleaseHeldCore(false);
+            }
 
             if (ignitionFx != null && ignitionFx.isPlaying)
             {
@@ -444,6 +592,11 @@ namespace RLMovie.Environments.ReactorCoreDelivery
 
         public void NotifySuccess()
         {
+            if (IsHoldingCore)
+            {
+                ReleaseHeldCore(false);
+            }
+
             if (objectiveCore != null)
             {
                 objectiveCore.linearVelocity = Vector3.zero;
@@ -522,7 +675,7 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         {
             if (shockFloorHazard == null)
             {
-                sensor.AddObservation(new float[6]);
+                sensor.AddObservation(new float[5]);
                 return;
             }
 
@@ -534,7 +687,6 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             sensor.AddObservation(Mathf.Sin(phaseRadians));
             sensor.AddObservation(Mathf.Cos(phaseRadians));
             sensor.AddObservation(shockFloorHazard.IsActive ? 1f : 0f);
-            sensor.AddObservation(shockFloorHazard.SafeWindow01);
         }
 
         private void AppendDoorObservations(VectorSensor sensor, Vector3 worldPosition)
@@ -556,42 +708,21 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             sensor.AddObservation(blastDoorHazard.IsPassable ? 1f : 0f);
         }
 
-        private void AppendSupportPropObservations(VectorSensor sensor, Vector3 worldPosition)
-        {
-            EnsureSupportPropsDiscovered();
-
-            for (int i = 0; i < SupportObservationSlots; i++)
-            {
-                Rigidbody supportProp = supportProps != null && i < supportProps.Length
-                    ? supportProps[i]
-                    : null;
-
-                if (supportProp == null)
-                {
-                    sensor.AddObservation(new float[SupportObservationStride]);
-                    continue;
-                }
-
-                Vector3 delta = supportProp.position - worldPosition;
-                Vector3 velocity = supportProp.linearVelocity;
-                sensor.AddObservation(Mathf.Clamp(delta.x / courseHalfWidth, -1f, 1f));
-                sensor.AddObservation(Mathf.Clamp(delta.z / 10f, -1f, 1f));
-                sensor.AddObservation(Mathf.Clamp01(delta.magnitude / Mathf.Max(1f, progressEndZ - progressStartZ)));
-                sensor.AddObservation(Mathf.Clamp(velocity.x / 6f, -1f, 1f));
-                sensor.AddObservation(Mathf.Clamp(velocity.z / 6f, -1f, 1f));
-            }
-        }
-
-        private Transform GetCurrentAnchor(Vector3 corePosition)
+        private Transform GetCurrentCheckpoint(Vector3 corePosition)
         {
             if (!_escortPhaseStarted)
             {
                 return objectiveCore != null ? objectiveCore.transform : coreSpawnAnchor;
             }
 
-            return corePosition.z < (mergeAnchor != null ? mergeAnchor.position.z : 0f)
-                ? mergeAnchor
-                : goalSocket;
+            int gateIndex = GetCoreGateIndex();
+            return gateIndex switch
+            {
+                0 => laserCheckpoint != null ? laserCheckpoint : shockCheckpoint,
+                1 => shockCheckpoint != null ? shockCheckpoint : doorCheckpoint,
+                2 => doorCheckpoint != null ? doorCheckpoint : goalSocket,
+                _ => goalSocket
+            };
         }
 
         private float GetEnvironmentParameter(string name, float fallbackValue)
@@ -600,6 +731,28 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             return academy == null
                 ? fallbackValue
                 : academy.EnvironmentParameters.GetWithDefault(name, fallbackValue);
+        }
+
+        private void CacheCorePhysicsDefaults()
+        {
+            if (objectiveCore == null || _baseCoreLinearDamping >= 0f)
+            {
+                return;
+            }
+
+            _baseCoreLinearDamping = objectiveCore.linearDamping;
+            _baseCoreAngularDamping = objectiveCore.angularDamping;
+        }
+
+        private void RestoreCorePhysicsDefaults()
+        {
+            if (objectiveCore == null)
+            {
+                return;
+            }
+
+            objectiveCore.linearDamping = _baseCoreLinearDamping >= 0f ? _baseCoreLinearDamping : objectiveCore.linearDamping;
+            objectiveCore.angularDamping = _baseCoreAngularDamping >= 0f ? _baseCoreAngularDamping : objectiveCore.angularDamping;
         }
 
         private void ApplyGlow(Color baseColor, Color emissionColor)
@@ -634,112 +787,12 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                 return;
             }
 
+            RestoreCorePhysicsDefaults();
             objectiveCore.linearVelocity = Vector3.zero;
             objectiveCore.angularVelocity = Vector3.zero;
             objectiveCore.position = coreSpawnAnchor.position;
             objectiveCore.rotation = coreSpawnAnchor.rotation;
-        }
-
-        private void ResetSupportProps(float jitterScale)
-        {
-            EnsureSupportPropsDiscovered();
-
-            if (supportProps == null || supportPropSpawnAnchors == null)
-            {
-                return;
-            }
-
-            int count = Mathf.Min(supportProps.Length, supportPropSpawnAnchors.Length);
-            for (int i = 0; i < count; i++)
-            {
-                Rigidbody supportProp = supportProps[i];
-                Transform spawnAnchor = supportPropSpawnAnchors[i];
-                if (supportProp == null || spawnAnchor == null)
-                {
-                    continue;
-                }
-
-                Vector3 spawnPosition = spawnAnchor.position;
-                spawnPosition.x += Random.Range(-supportPropSpawnJitterX, supportPropSpawnJitterX) * jitterScale;
-                spawnPosition.z += Random.Range(-supportPropSpawnJitterZ, supportPropSpawnJitterZ) * jitterScale;
-
-                supportProp.linearVelocity = Vector3.zero;
-                supportProp.angularVelocity = Vector3.zero;
-                supportProp.position = spawnPosition;
-                supportProp.rotation = spawnAnchor.rotation;
-            }
-        }
-
-        private void EnsureSupportPropsDiscovered()
-        {
-            bool hasSerializedSet =
-                supportProps != null &&
-                supportPropSpawnAnchors != null &&
-                supportProps.Length > 0 &&
-                supportPropSpawnAnchors.Length == supportProps.Length;
-
-            if (hasSerializedSet)
-            {
-                for (int i = 0; i < supportProps.Length; i++)
-                {
-                    if (supportProps[i] == null || supportPropSpawnAnchors[i] == null)
-                    {
-                        hasSerializedSet = false;
-                        break;
-                    }
-                }
-            }
-
-            if (hasSerializedSet)
-            {
-                return;
-            }
-
-            Rigidbody[] discoveredBodies = FindObjectsByType<Rigidbody>(FindObjectsSortMode.None);
-            var supportBodyList = new List<Rigidbody>();
-            for (int i = 0; i < discoveredBodies.Length; i++)
-            {
-                Rigidbody body = discoveredBodies[i];
-                if (body != null && body.name.StartsWith("SupportCart_", StringComparison.Ordinal))
-                {
-                    supportBodyList.Add(body);
-                }
-            }
-
-            if (supportBodyList.Count == 0)
-            {
-                supportProps = Array.Empty<Rigidbody>();
-                supportPropSpawnAnchors = Array.Empty<Transform>();
-                return;
-            }
-
-            supportBodyList.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
-
-            Transform[] discoveredTransforms = FindObjectsByType<Transform>(FindObjectsSortMode.None);
-            var spawnAnchorsByName = new Dictionary<string, Transform>(StringComparer.Ordinal);
-            for (int i = 0; i < discoveredTransforms.Length; i++)
-            {
-                Transform transform = discoveredTransforms[i];
-                if (transform == null || !transform.name.EndsWith("_Spawn", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                spawnAnchorsByName[transform.name] = transform;
-            }
-
-            supportProps = supportBodyList.ToArray();
-            supportPropSpawnAnchors = new Transform[supportProps.Length];
-            for (int i = 0; i < supportProps.Length; i++)
-            {
-                string anchorName = $"{supportProps[i].name}_Spawn";
-                if (!spawnAnchorsByName.TryGetValue(anchorName, out Transform anchor))
-                {
-                    anchor = supportProps[i].transform;
-                }
-
-                supportPropSpawnAnchors[i] = anchor;
-            }
+            objectiveCore.Sleep();
         }
 
         private bool ComputeCoreInsideDockZone()
@@ -788,6 +841,11 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             {
                 baseColor = _dockedCoreBase;
                 emissionColor = _dockedCoreEmission;
+            }
+            else if (IsHoldingCore)
+            {
+                baseColor = _heldCoreBase;
+                emissionColor = _heldCoreEmission;
             }
             else if (_escortPhaseStarted)
             {
@@ -884,6 +942,27 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                     ApplyColor(renderer, baseColor, emissionColor);
                 }
             }
+        }
+
+        private void DestroyHoldJointImmediate()
+        {
+            if (_holdJoint == null)
+            {
+                return;
+            }
+
+            _holdJoint.connectedBody = null;
+
+            if (Application.isPlaying)
+            {
+                Destroy(_holdJoint);
+            }
+            else
+            {
+                DestroyImmediate(_holdJoint);
+            }
+
+            _holdJoint = null;
         }
 
         private static bool[] GetDigitPattern(int digit)

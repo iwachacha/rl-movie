@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using RLMovie.Common;
 using RLMovie.Environments.ReactorCoreDelivery;
+using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -12,7 +13,7 @@ using Object = UnityEngine.Object;
 namespace RLMovie.Editor
 {
     /// <summary>
-    /// Creates the full Reactor Core Delivery V1 scene, scenario-side prefab variants, materials, and animator assets.
+    /// Creates the Reactor Core Delivery V2 scene with a single mandatory transport spine.
     /// </summary>
     public static class ReactorCoreDeliverySceneBuilder
     {
@@ -68,7 +69,7 @@ namespace RLMovie.Editor
                 ScenePath,
                 "ReactorCoreDeliveryAgent",
                 ReactorCoreDeliveryCourse.ObservationSize,
-                2,
+                new ActionSpec(2, new[] { 3 }),
                 (context, agent) => ConfigureScenario(context, agent, assets));
 
             AssetDatabase.SaveAssets();
@@ -110,24 +111,13 @@ namespace RLMovie.Editor
             Transform courseRoot = CreateChild(environmentRoot, "CourseRoot").transform;
             Transform shellRoot = CreateChild(environmentRoot, "ShellRoot").transform;
             Transform propsRoot = CreateChild(environmentRoot, "PropsRoot").transform;
-
-            Transform startAnchor = CreateAnchor(courseRoot, "StartAnchor", new Vector3(0f, 0.5f, -10f));
-            Transform mergeAnchor = CreateAnchor(courseRoot, "MergeAnchor", new Vector3(0f, 0.5f, 9f));
-
-            BuildBoundaryGeometry(courseRoot, assets);
-            BuildCourseReadability(courseRoot, assets);
             BuildStaticShell(shellRoot, assets);
-            SupportPropRig supportPropRig = BuildPropDressing(propsRoot, assets);
+            BuildAmbientPropsV2(propsRoot, assets);
 
-            SweepingLaserHazard laserHazard = BuildLaserHazard(courseRoot, assets);
-            ShockFloorHazard shockFloorHazard = BuildShockFloor(courseRoot, assets);
-            BlastDoorHazard blastDoorHazard = BuildBlastDoor(courseRoot, assets);
-            PickupVisuals pickupVisuals = BuildPickupCoreDock(courseRoot, assets);
-            GoalVisuals goalVisuals = BuildGoalSocket(defaultGoalRoot, courseRoot, assets);
-
+            CourseBuildResult build = BuildSingleSpineCourse(courseRoot, defaultGoalRoot, assets);
             ReactorCoreDeliveryCourse course = CreateCourseRoot(courseRoot);
-            WireCourse(course, startAnchor, mergeAnchor, pickupVisuals, defaultGoalRoot, laserHazard, shockFloorHazard, blastDoorHazard, goalVisuals, supportPropRig);
-            WireAgent(agent, context.EnvironmentManager, context.RecordingHelper, course, startAnchor);
+            WireCourseV2(course, build);
+            WireAgent(agent, context.EnvironmentManager, context.RecordingHelper, course, build.StartAnchor);
             WireHud(context.EnvironmentRoot, course);
             WireGoldenSpine(context.GoldenSpine, context.EnvironmentRoot.transform, agent, defaultGoalRoot, context.EnvironmentManager);
         }
@@ -154,8 +144,8 @@ namespace RLMovie.Editor
                 AgentHelmetMaterial = CreateOrUpdateLitMaterial(MaterialsRoot + "/M_RcdAgentHelmet.mat", new Color(0.92f, 0.70f, 0.16f), new Color(0.00f, 0.00f, 0.00f), 0.14f, 0.32f),
                 AgentVisorMaterial = CreateOrUpdateLitMaterial(MaterialsRoot + "/M_RcdAgentVisor.mat", new Color(0.10f, 0.12f, 0.14f), new Color(0f, 0f, 0f), 0.12f, 0.28f),
                 AgentAccentMaterial = CreateOrUpdateLitMaterial(MaterialsRoot + "/M_RcdAgentAccent.mat", new Color(0.14f, 0.62f, 0.78f), new Color(0.08f, 0.35f, 0.46f), 0f, 0.44f),
-                CorePhysicsMaterial = CreateOrUpdatePhysicsMaterial(MaterialsRoot + "/PM_RcdCore.physicsMaterial", 0.12f, 0.16f, 0.28f),
-                PropPhysicsMaterial = CreateOrUpdatePhysicsMaterial(MaterialsRoot + "/PM_RcdSupportProp.physicsMaterial", 0.72f, 0.80f, 0.02f)
+                CorePhysicsMaterial = CreateOrUpdatePhysicsMaterial(MaterialsRoot + "/PM_RcdCore.physicMaterial", 0.12f, 0.16f, 0.28f),
+                PropPhysicsMaterial = CreateOrUpdatePhysicsMaterial(MaterialsRoot + "/PM_RcdSupportProp.physicMaterial", 0.72f, 0.80f, 0.02f)
             };
 
             assets.MovementController = CreateOrUpdateMovementController(AnimationRoot + "/ReactorCoreDeliveryMovement.controller");
@@ -436,20 +426,20 @@ namespace RLMovie.Editor
 
             if (context.DefaultCameraView != null)
             {
-                context.DefaultCameraView.position = new Vector3(-2.35f, 2.55f, -15.2f);
-                context.DefaultCameraView.rotation = Quaternion.Euler(11f, 18f, 0f);
+                context.DefaultCameraView.position = new Vector3(-0.35f, 2.45f, -10.45f);
+                context.DefaultCameraView.rotation = Quaternion.Euler(12f, 6f, 0f);
             }
 
             if (recordRearFollow != null)
             {
-                recordRearFollow.position = new Vector3(-2.75f, 2.45f, -15.7f);
-                recordRearFollow.rotation = Quaternion.Euler(11f, 18f, 0f);
+                recordRearFollow.position = new Vector3(-2.1f, 2.6f, -14.8f);
+                recordRearFollow.rotation = Quaternion.Euler(15f, 15f, 0f);
             }
 
             if (recordFrontFollow != null)
             {
-                recordFrontFollow.position = new Vector3(2.45f, 2.35f, -4.4f);
-                recordFrontFollow.rotation = Quaternion.Euler(10f, 198f, 0f);
+                recordFrontFollow.position = new Vector3(1.8f, 2.4f, -1.8f);
+                recordFrontFollow.rotation = Quaternion.Euler(12f, 196f, 0f);
             }
 
             if (context.MainCamera != null && context.DefaultCameraView != null)
@@ -469,10 +459,10 @@ namespace RLMovie.Editor
             AssignBool(context.RecordingHelper, "enableTemporaryBlackoutCuts", true);
             AssignInt(context.RecordingHelper, "followCameraIndex", -1);
             AssignObjectReference(context.RecordingHelper, "followTarget", context.Agent != null ? context.Agent.transform : null);
-            AssignVector3(context.RecordingHelper, "followPositionOffset", new Vector3(-0.45f, 2.25f, -5.8f));
-            AssignVector3(context.RecordingHelper, "followLookAtOffset", new Vector3(0.10f, 1.20f, 3.05f));
-            AssignFloat(context.RecordingHelper, "followPositionSharpness", 4.2f);
-            AssignFloat(context.RecordingHelper, "followRotationSharpness", 6.0f);
+            AssignVector3(context.RecordingHelper, "followPositionOffset", new Vector3(-0.35f, 2.35f, -5.4f));
+            AssignVector3(context.RecordingHelper, "followLookAtOffset", new Vector3(0.05f, 1.18f, 3.30f));
+            AssignFloat(context.RecordingHelper, "followPositionSharpness", 4.5f);
+            AssignFloat(context.RecordingHelper, "followRotationSharpness", 6.2f);
             AssignBool(context.RecordingHelper, "enableOccluderGhosting", true);
             AssignFloat(context.RecordingHelper, "occluderGhostAlpha", 0.16f);
             AssignFloat(context.RecordingHelper, "occluderProbeRadius", 0.36f);
@@ -480,8 +470,8 @@ namespace RLMovie.Editor
                 context.RecordingHelper,
                 new[]
                 {
-                    FollowCameraProfileData.Create(0, new Vector3(-0.45f, 2.25f, -5.8f), new Vector3(0.10f, 1.20f, 3.05f), 4.2f, 6.0f),
-                    FollowCameraProfileData.Create(1, new Vector3(0.38f, 2.15f, 5.45f), new Vector3(0f, 1.18f, 0.75f), 4.2f, 6.4f)
+                    FollowCameraProfileData.Create(0, new Vector3(-0.35f, 2.35f, -5.4f), new Vector3(0.05f, 1.18f, 3.30f), 4.5f, 6.2f),
+                    FollowCameraProfileData.Create(1, new Vector3(0.45f, 2.15f, 5.10f), new Vector3(0f, 1.15f, 0.95f), 4.3f, 6.4f)
                 });
         }
 
@@ -496,6 +486,313 @@ namespace RLMovie.Editor
             {
                 renderer.sharedMaterial = assets.DarkFloorMaterial;
             }
+        }
+
+        private static CourseBuildResult BuildSingleSpineCourse(Transform parent, Transform goalRoot, GeneratedAssets assets)
+        {
+            var build = new CourseBuildResult
+            {
+                StartAnchor = CreateAnchor(parent, "StartAnchor", new Vector3(0f, 0.5f, -10f))
+            };
+
+            BuildSingleSpineBoundsV2(parent, assets);
+            BuildSingleSpineReadabilityV2(parent, assets);
+
+            build.PickupVisuals = BuildPickupCoreDock(parent, assets);
+            build.LaserHazard = BuildLaserGateV2(parent, assets);
+            build.ShockFloorHazard = BuildShockFloorV2(parent, assets);
+            build.BlastDoorHazard = BuildBlastDoorV2(parent, assets);
+            BuildGoalFunnelV2(parent, assets);
+            build.GoalVisuals = BuildGoalSocket(goalRoot, parent, assets);
+            BuildGoalDressingsV2(parent, assets);
+
+            build.LaserCheckpoint = CreateAnchor(parent, "LaserCheckpoint", new Vector3(0f, 0.5f, 1.8f));
+            build.ShockCheckpoint = CreateAnchor(parent, "ShockCheckpoint", new Vector3(0f, 0.5f, 8.1f));
+            build.DoorCheckpoint = CreateAnchor(parent, "DoorCheckpoint", new Vector3(0f, 0.5f, 14.2f));
+            build.GoalSocket = goalRoot;
+            return build;
+        }
+
+        private static void BuildSingleSpineBoundsV2(Transform parent, GeneratedAssets assets)
+        {
+            const float innerHalfWidth = 1.88f;
+            const float wallHeight = 2.6f;
+            float wallCenterY = wallHeight * 0.5f;
+
+            CreateBlock(parent, "InnerWallLeft", new Vector3(-(innerHalfWidth + 0.18f), wallCenterY, 4f), new Vector3(0.26f, wallHeight, 30.1f), assets.BoundaryMaterial);
+            CreateBlock(parent, "InnerWallRight", new Vector3(innerHalfWidth + 0.18f, wallCenterY, 4f), new Vector3(0.26f, wallHeight, 30.1f), assets.BoundaryMaterial);
+            CreateBlock(parent, "StartBulkhead", new Vector3(0f, wallCenterY, -10.95f), new Vector3(4.7f, wallHeight, 0.32f), assets.BoundaryMaterial);
+            CreateBlock(parent, "GoalBulkhead", new Vector3(0f, wallCenterY, 19.15f), new Vector3(4.7f, wallHeight, 0.32f), assets.BoundaryMaterial);
+            CreateBlock(parent, "CeilingLintelStart", new Vector3(0f, 2.82f, -10.6f), new Vector3(4.5f, 0.16f, 0.26f), assets.BoundaryMaterial);
+            CreateBlock(parent, "CeilingLintelGoal", new Vector3(0f, 2.82f, 18.85f), new Vector3(4.5f, 0.16f, 0.26f), assets.BoundaryMaterial);
+
+            CreateVisualBlock(parent, "RunwayPlate", new Vector3(0f, 0.02f, 4f), new Vector3(3.55f, 0.04f, 29.7f), assets.DarkFloorMaterial);
+            CreateVisualBlock(parent, "RunwayCenterStrip", new Vector3(0f, 0.045f, 4.4f), new Vector3(0.32f, 0.02f, 26.4f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "RunwayEdgeStripLeft", new Vector3(-1.34f, 0.045f, 4.4f), new Vector3(0.10f, 0.02f, 26.4f), assets.DoorPanelMaterial);
+            CreateVisualBlock(parent, "RunwayEdgeStripRight", new Vector3(1.34f, 0.045f, 4.4f), new Vector3(0.10f, 0.02f, 26.4f), assets.DoorPanelMaterial);
+
+            float[] frameZ = { -7.2f, -1.0f, 5.2f, 11.7f, 16.6f };
+            for (int i = 0; i < frameZ.Length; i++)
+            {
+                Material accent = i % 2 == 0 ? assets.GoalMaterial : assets.LaserMaterial;
+                BuildZoneFrame(parent, $"SpineFrame_{i}", new Vector3(0f, 0f, frameZ[i]), 3.78f, 2.75f, 0.20f, assets.BoundaryMaterial, accent);
+            }
+        }
+
+        private static void BuildSingleSpineReadabilityV2(Transform parent, GeneratedAssets assets)
+        {
+            CreateVisualBlock(parent, "PickupBayPad", new Vector3(0f, 0.04f, -9.35f), new Vector3(2.35f, 0.03f, 1.9f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "PickupBayAccent", new Vector3(0f, 0.06f, -9.35f), new Vector3(1.55f, 0.02f, 1.18f), assets.GoalMaterial);
+
+            CreateVisualBlock(parent, "LaserPocketMarker", new Vector3(0f, 0.05f, -1.35f), new Vector3(1.35f, 0.025f, 0.82f), assets.LaserMaterial);
+            CreateVisualBlock(parent, "LaserThresholdA", new Vector3(0f, 0.05f, 0.18f), new Vector3(1.75f, 0.025f, 0.12f), assets.LaserMaterial);
+            CreateVisualBlock(parent, "LaserThresholdB", new Vector3(0f, 0.05f, 1.52f), new Vector3(1.75f, 0.025f, 0.12f), assets.LaserMaterial);
+
+            CreateVisualBlock(parent, "ShockThresholdA", new Vector3(0f, 0.05f, 4.95f), new Vector3(1.75f, 0.025f, 0.12f), assets.ShockOffMaterial);
+            CreateVisualBlock(parent, "ShockThresholdB", new Vector3(0f, 0.05f, 8.75f), new Vector3(1.75f, 0.025f, 0.12f), assets.ShockOffMaterial);
+
+            CreateVisualBlock(parent, "DoorAnteRoomPad", new Vector3(0f, 0.04f, 10.95f), new Vector3(1.95f, 0.03f, 1.15f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "DoorAnteRoomAccent", new Vector3(0f, 0.06f, 10.95f), new Vector3(1.55f, 0.02f, 0.64f), assets.DoorPanelMaterial);
+        }
+
+        private static void BuildAmbientPropsV2(Transform parent, GeneratedAssets assets)
+        {
+            BuildStartMissionRack(parent, assets);
+            BuildDoorServiceBay(parent, assets);
+
+            PlaceOptionalPrefab(assets.CosmicLockerPrefab, parent, new Vector3(-3.95f, 0f, -8.25f), Quaternion.Euler(0f, 90f, 0f), Vector3.one);
+            PlaceOptionalPrefab(assets.CosmicPanelPrefab, parent, new Vector3(3.45f, 0f, -7.55f), Quaternion.Euler(0f, -90f, 0f), Vector3.one);
+            PlaceOptionalPrefab(assets.CosmicMonitorPrefab, parent, new Vector3(-3.20f, 0f, 0.25f), Quaternion.Euler(0f, 90f, 0f), Vector3.one * 0.92f);
+            PlaceOptionalPrefab(assets.CosmicCratePrefab, parent, new Vector3(3.35f, 0f, 2.35f), Quaternion.identity, Vector3.one * 0.82f);
+            PlaceOptionalPrefab(assets.CosmicLockerPrefab, parent, new Vector3(3.95f, 0f, 6.90f), Quaternion.Euler(0f, -90f, 0f), Vector3.one * 0.96f);
+            PlaceOptionalPrefab(assets.CosmicCratePrefab, parent, new Vector3(-3.30f, 0f, 11.35f), Quaternion.identity, Vector3.one * 0.80f);
+            PlaceOptionalPrefab(assets.CosmicPanelPrefab, parent, new Vector3(3.30f, 0f, 14.55f), Quaternion.Euler(0f, -90f, 0f), Vector3.one);
+            PlaceOptionalPrefab(assets.CosmicMonitorPrefab, parent, new Vector3(-3.30f, 0f, 17.05f), Quaternion.Euler(0f, 90f, 0f), Vector3.one);
+        }
+
+        private static SweepingLaserHazard BuildLaserGateV2(Transform parent, GeneratedAssets assets)
+        {
+            GameObject root = CreateChild(parent, "LaserGate");
+            root.transform.localPosition = new Vector3(0f, 0f, 0.85f);
+
+            CreateBlock(root.transform, "LaserFrameLeft", new Vector3(-1.86f, 1.20f, 0f), new Vector3(0.22f, 2.4f, 0.36f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "LaserFrameRight", new Vector3(1.86f, 1.20f, 0f), new Vector3(0.22f, 2.4f, 0.36f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "LaserFrameTop", new Vector3(0f, 2.34f, 0f), new Vector3(3.95f, 0.18f, 0.36f), assets.BoundaryMaterial);
+            CreateVisualBlock(root.transform, "LaserAccentLeft", new Vector3(-1.55f, 1.98f, 0.18f), new Vector3(0.30f, 0.10f, 0.06f), assets.LaserMaterial);
+            CreateVisualBlock(root.transform, "LaserAccentRight", new Vector3(1.55f, 1.98f, 0.18f), new Vector3(0.30f, 0.10f, 0.06f), assets.LaserMaterial);
+
+            Transform pivot = CreateChild(root.transform, "LaserPivot").transform;
+            pivot.localPosition = new Vector3(0f, 0.96f, 0f);
+
+            GameObject beam = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            beam.name = "LaserBeam";
+            beam.transform.SetParent(pivot, false);
+            beam.transform.localPosition = Vector3.zero;
+            beam.transform.localScale = new Vector3(4.05f, 0.12f, 0.18f);
+
+            Renderer beamRenderer = beam.GetComponent<Renderer>();
+            if (beamRenderer != null && assets.LaserMaterial != null)
+            {
+                beamRenderer.sharedMaterial = assets.LaserMaterial;
+            }
+
+            BoxCollider trigger = beam.GetComponent<BoxCollider>();
+            trigger.isTrigger = true;
+
+            SweepingLaserHazard laserHazard = beam.AddComponent<SweepingLaserHazard>();
+            SerializedObject laserSo = new SerializedObject(laserHazard);
+            laserSo.FindProperty("pivot").objectReferenceValue = pivot;
+            laserSo.FindProperty("beamRenderer").objectReferenceValue = beamRenderer;
+            laserSo.FindProperty("sweepAngle").floatValue = 28f;
+            laserSo.FindProperty("cycleDuration").floatValue = 2.0f;
+            laserSo.ApplyModifiedPropertiesWithoutUndo();
+
+            return laserHazard;
+        }
+
+        private static ShockFloorHazard BuildShockFloorV2(Transform parent, GeneratedAssets assets)
+        {
+            GameObject root = CreateChild(parent, "ShockFloor");
+            root.transform.localPosition = new Vector3(0f, 0.02f, 6.8f);
+
+            BoxCollider trigger = root.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, 0.56f, 0f);
+            trigger.size = new Vector3(3.55f, 1.12f, 4.55f);
+
+            var panelRenderers = new List<Renderer>();
+            var indicatorRenderers = new List<Renderer>();
+            var ramHeads = new List<Transform>();
+
+            CreateVisualBlock(root.transform, "ShockDeck", new Vector3(0f, 0f, 0f), new Vector3(3.48f, 0.08f, 4.62f), assets.ShockOffMaterial);
+            CreateVisualBlock(root.transform, "ShockDeckInset", new Vector3(0f, 0.02f, 0f), new Vector3(2.95f, 0.04f, 4.08f), assets.BoundaryMaterial);
+
+            float[] panelX = { -1.05f, 0f, 1.05f };
+            float[] panelZ = { -1.45f, 0f, 1.45f };
+            for (int x = 0; x < panelX.Length; x++)
+            {
+                for (int z = 0; z < panelZ.Length; z++)
+                {
+                    GameObject panel = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                    panel.name = $"ShockPanel_{x}_{z}";
+                    panel.transform.SetParent(root.transform, false);
+                    panel.transform.localPosition = new Vector3(panelX[x], 0.045f, panelZ[z]);
+                    panel.transform.localScale = new Vector3(0.88f, 0.06f, 0.88f);
+                    DestroyCollider(panel);
+
+                    Renderer renderer = panel.GetComponent<Renderer>();
+                    if (renderer != null && assets.ShockOffMaterial != null)
+                    {
+                        renderer.sharedMaterial = assets.ShockOffMaterial;
+                        panelRenderers.Add(renderer);
+                    }
+                }
+            }
+
+            CreateBlock(root.transform, "ShockHousingLeft", new Vector3(-1.98f, 0.98f, 0f), new Vector3(0.24f, 1.65f, 4.7f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "ShockHousingRight", new Vector3(1.98f, 0.98f, 0f), new Vector3(0.24f, 1.65f, 4.7f), assets.BoundaryMaterial);
+
+            float[] ramOffsets = { -1.55f, 0f, 1.55f };
+            for (int i = 0; i < ramOffsets.Length; i++)
+            {
+                GameObject ramHead = CreateBlock(root.transform, $"ShockRam_{i}", new Vector3(-1.64f, 0.92f, ramOffsets[i]), new Vector3(0.44f, 0.50f, 0.78f), assets.LaserMaterial);
+                DestroyCollider(ramHead);
+                ramHeads.Add(ramHead.transform);
+            }
+
+            Renderer[] leftBeacon = BuildAlarmBeacon(root.transform, "ShockBeaconLeft", new Vector3(-1.52f, 1.78f, -1.92f), assets);
+            Renderer[] rightBeacon = BuildAlarmBeacon(root.transform, "ShockBeaconRight", new Vector3(1.52f, 1.78f, 1.92f), assets);
+            indicatorRenderers.AddRange(leftBeacon);
+            indicatorRenderers.AddRange(rightBeacon);
+
+            ShockFloorHazard shockFloorHazard = root.AddComponent<ShockFloorHazard>();
+            SerializedObject shockSo = new SerializedObject(shockFloorHazard);
+            shockSo.FindProperty("panelRenderers").arraySize = panelRenderers.Count;
+            for (int i = 0; i < panelRenderers.Count; i++)
+            {
+                shockSo.FindProperty("panelRenderers").GetArrayElementAtIndex(i).objectReferenceValue = panelRenderers[i];
+            }
+
+            shockSo.FindProperty("indicatorRenderers").arraySize = indicatorRenderers.Count;
+            for (int i = 0; i < indicatorRenderers.Count; i++)
+            {
+                shockSo.FindProperty("indicatorRenderers").GetArrayElementAtIndex(i).objectReferenceValue = indicatorRenderers[i];
+            }
+
+            shockSo.FindProperty("ramHeads").arraySize = ramHeads.Count;
+            for (int i = 0; i < ramHeads.Count; i++)
+            {
+                shockSo.FindProperty("ramHeads").GetArrayElementAtIndex(i).objectReferenceValue = ramHeads[i];
+            }
+
+            shockSo.FindProperty("cycleDuration").floatValue = 2.15f;
+            shockSo.FindProperty("activeDuration").floatValue = 0.74f;
+            shockSo.FindProperty("ramTravelDistance").floatValue = 0.68f;
+            shockSo.FindProperty("ramDirectionSign").floatValue = 1f;
+            shockSo.ApplyModifiedPropertiesWithoutUndo();
+            return shockFloorHazard;
+        }
+
+        private static BlastDoorHazard BuildBlastDoorV2(Transform parent, GeneratedAssets assets)
+        {
+            GameObject root = CreateChild(parent, "BlastDoor");
+            root.transform.localPosition = new Vector3(0f, 0f, 12.55f);
+
+            CreateBlock(root.transform, "DoorPocketLeft", new Vector3(-2.10f, 1.36f, 0f), new Vector3(0.42f, 2.72f, 1.20f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "DoorPocketRight", new Vector3(2.10f, 1.36f, 0f), new Vector3(0.42f, 2.72f, 1.20f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "DoorFrameLeft", new Vector3(-1.64f, 1.36f, 0f), new Vector3(0.26f, 2.72f, 0.42f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "DoorFrameRight", new Vector3(1.64f, 1.36f, 0f), new Vector3(0.26f, 2.72f, 0.42f), assets.BoundaryMaterial);
+            CreateBlock(root.transform, "DoorHeader", new Vector3(0f, 2.52f, 0f), new Vector3(3.52f, 0.28f, 0.42f), assets.BoundaryMaterial);
+            CreateVisualBlock(root.transform, "DoorHeaderAccent", new Vector3(0f, 2.22f, 0.14f), new Vector3(2.85f, 0.08f, 0.04f), assets.GoalMaterial);
+
+            GameObject leftPanel = CreateBlock(root.transform, "LeftDoorPanel", new Vector3(-0.74f, 1.10f, 0f), new Vector3(1.48f, 2.20f, 0.28f), assets.DoorPanelMaterial);
+            GameObject rightPanel = CreateBlock(root.transform, "RightDoorPanel", new Vector3(0.74f, 1.10f, 0f), new Vector3(1.48f, 2.20f, 0.28f), assets.DoorPanelMaterial);
+            GameObject leftIndicator = CreateBlock(root.transform, "DoorIndicatorLeft", new Vector3(-1.18f, 2.02f, 0.20f), new Vector3(0.24f, 0.18f, 0.04f), assets.DoorPanelMaterial);
+            GameObject rightIndicator = CreateBlock(root.transform, "DoorIndicatorRight", new Vector3(1.18f, 2.02f, 0.20f), new Vector3(0.24f, 0.18f, 0.04f), assets.DoorPanelMaterial);
+
+            BlastDoorHazard blastDoorHazard = root.AddComponent<BlastDoorHazard>();
+            SerializedObject doorSo = new SerializedObject(blastDoorHazard);
+            doorSo.FindProperty("leftPanel").objectReferenceValue = leftPanel.transform;
+            doorSo.FindProperty("rightPanel").objectReferenceValue = rightPanel.transform;
+            doorSo.FindProperty("indicatorRenderers").arraySize = 2;
+            doorSo.FindProperty("indicatorRenderers").GetArrayElementAtIndex(0).objectReferenceValue = leftIndicator.GetComponent<Renderer>();
+            doorSo.FindProperty("indicatorRenderers").GetArrayElementAtIndex(1).objectReferenceValue = rightIndicator.GetComponent<Renderer>();
+            doorSo.FindProperty("cycleDuration").floatValue = 3.1f;
+            doorSo.FindProperty("openDuration").floatValue = 1.1f;
+            doorSo.FindProperty("travelDistance").floatValue = 1.10f;
+            doorSo.FindProperty("passableThreshold").floatValue = 0.72f;
+            doorSo.ApplyModifiedPropertiesWithoutUndo();
+            return blastDoorHazard;
+        }
+
+        private static void BuildGoalFunnelV2(Transform parent, GeneratedAssets assets)
+        {
+            CreateVisualBlock(parent, "GoalFunnelFloor", new Vector3(0f, 0.04f, 16.45f), new Vector3(2.15f, 0.03f, 2.45f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "GoalFunnelStrip", new Vector3(0f, 0.06f, 16.75f), new Vector3(0.28f, 0.02f, 1.75f), assets.GoalMaterial);
+
+            CreateBlock(parent, "GoalFunnelLeft", new Vector3(-1.62f, 1.02f, 15.95f), new Vector3(0.24f, 2.05f, 3.05f), assets.BoundaryMaterial, Quaternion.Euler(0f, -13f, 0f));
+            CreateBlock(parent, "GoalFunnelRight", new Vector3(1.62f, 1.02f, 15.95f), new Vector3(0.24f, 2.05f, 3.05f), assets.BoundaryMaterial, Quaternion.Euler(0f, 13f, 0f));
+            CreateBlock(parent, "GoalSocketWallLeft", new Vector3(-0.88f, 0.88f, 17.95f), new Vector3(0.18f, 1.76f, 1.12f), assets.BoundaryMaterial);
+            CreateBlock(parent, "GoalSocketWallRight", new Vector3(0.88f, 0.88f, 17.95f), new Vector3(0.18f, 1.76f, 1.12f), assets.BoundaryMaterial);
+        }
+
+        private static void BuildGoalDressingsV2(Transform parent, GeneratedAssets assets)
+        {
+            CreateBlock(parent, "GoalPillarLeft", new Vector3(-2.12f, 1.42f, 18f), new Vector3(0.34f, 2.84f, 0.42f), assets.BoundaryMaterial);
+            CreateBlock(parent, "GoalPillarRight", new Vector3(2.12f, 1.42f, 18f), new Vector3(0.34f, 2.84f, 0.42f), assets.BoundaryMaterial);
+            CreateBlock(parent, "GoalLintel", new Vector3(0f, 2.74f, 18f), new Vector3(4.35f, 0.16f, 0.42f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "GoalLintelGlow", new Vector3(0f, 2.46f, 18.16f), new Vector3(3.05f, 0.08f, 0.05f), assets.GoalMaterial);
+        }
+
+        private static void WireCourseV2(ReactorCoreDeliveryCourse course, CourseBuildResult build)
+        {
+            SerializedObject courseSo = new SerializedObject(course);
+            courseSo.FindProperty("startAnchor").objectReferenceValue = build.StartAnchor;
+            courseSo.FindProperty("coreSpawnAnchor").objectReferenceValue = build.PickupVisuals.CoreSpawnAnchor;
+            courseSo.FindProperty("laserCheckpoint").objectReferenceValue = build.LaserCheckpoint;
+            courseSo.FindProperty("shockCheckpoint").objectReferenceValue = build.ShockCheckpoint;
+            courseSo.FindProperty("doorCheckpoint").objectReferenceValue = build.DoorCheckpoint;
+            courseSo.FindProperty("goalSocket").objectReferenceValue = build.GoalSocket;
+
+            courseSo.FindProperty("objectiveCore").objectReferenceValue = build.PickupVisuals.ObjectiveCore;
+            courseSo.FindProperty("coreRenderer").objectReferenceValue = build.PickupVisuals.CoreRenderer;
+            courseSo.FindProperty("laserHazard").objectReferenceValue = build.LaserHazard;
+            courseSo.FindProperty("shockFloorHazard").objectReferenceValue = build.ShockFloorHazard;
+            courseSo.FindProperty("blastDoorHazard").objectReferenceValue = build.BlastDoorHazard;
+
+            courseSo.FindProperty("reactorGlowRenderer").objectReferenceValue = build.GoalVisuals.GlowRenderer;
+            courseSo.FindProperty("ignitionFx").objectReferenceValue = build.GoalVisuals.IgnitionFx;
+            courseSo.FindProperty("shockFx").objectReferenceValue = build.GoalVisuals.ShockFx;
+            courseSo.FindProperty("countdownFillRenderer").objectReferenceValue = build.GoalVisuals.CountdownFillRenderer;
+            courseSo.FindProperty("countdownFill").objectReferenceValue = build.GoalVisuals.CountdownFill;
+            courseSo.FindProperty("meltdownFx").objectReferenceValue = build.GoalVisuals.MeltdownFx;
+            courseSo.FindProperty("meltdownDebrisFx").objectReferenceValue = build.GoalVisuals.MeltdownDebrisFx;
+            courseSo.FindProperty("meltdownOrigin").objectReferenceValue = build.GoalVisuals.MeltdownOrigin;
+
+            courseSo.FindProperty("alertBeaconRenderers").arraySize = build.GoalVisuals.AlertBeaconRenderers.Length;
+            for (int i = 0; i < build.GoalVisuals.AlertBeaconRenderers.Length; i++)
+            {
+                courseSo.FindProperty("alertBeaconRenderers").GetArrayElementAtIndex(i).objectReferenceValue = build.GoalVisuals.AlertBeaconRenderers[i];
+            }
+
+            courseSo.FindProperty("countdownDigitRenderers").arraySize = build.GoalVisuals.CountdownDigitRenderers.Length;
+            for (int i = 0; i < build.GoalVisuals.CountdownDigitRenderers.Length; i++)
+            {
+                courseSo.FindProperty("countdownDigitRenderers").GetArrayElementAtIndex(i).objectReferenceValue = build.GoalVisuals.CountdownDigitRenderers[i];
+            }
+
+            courseSo.FindProperty("courseHalfWidth").floatValue = 1.88f;
+            courseSo.FindProperty("progressStartZ").floatValue = -10.4f;
+            courseSo.FindProperty("progressEndZ").floatValue = 18.6f;
+            courseSo.FindProperty("spawnJitterX").floatValue = 0.30f;
+            courseSo.FindProperty("spawnJitterZ").floatValue = 0.22f;
+            courseSo.FindProperty("coreOutOfBoundsPadding").floatValue = 0.60f;
+            courseSo.FindProperty("laserGateZ").floatValue = 1.3f;
+            courseSo.FindProperty("shockGateZ").floatValue = 8.0f;
+            courseSo.FindProperty("doorGateZ").floatValue = 13.8f;
+            courseSo.FindProperty("baseDeliveryDeadline").floatValue = 19.0f;
+            courseSo.FindProperty("minDeliveryDeadline").floatValue = 12.0f;
+            courseSo.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static void SetupAgent(ReactorCoreDeliveryAgent agent, EnvironmentManager environmentManager, GeneratedAssets assets)
@@ -572,6 +869,11 @@ namespace RLMovie.Editor
             visualControllerSo.FindProperty("modelRoot").objectReferenceValue = visualInstance.transform;
             visualControllerSo.ApplyModifiedPropertiesWithoutUndo();
 
+            DeleteChildIfExists(agent.transform, "CarryAnchor");
+            Transform carryAnchor = CreateChild(agent.transform, "CarryAnchor").transform;
+            carryAnchor.localPosition = new Vector3(0f, 1.02f, 0.52f);
+            carryAnchor.localRotation = Quaternion.identity;
+
             BuildAgentViewSensor(agent.transform);
 
             SerializedObject agentSo = new SerializedObject(agent);
@@ -580,6 +882,7 @@ namespace RLMovie.Editor
             agentSo.FindProperty("startPosition").vector3Value = new Vector3(0f, 0.5f, -10f);
             agentSo.FindProperty("startRotation").quaternionValue = Quaternion.identity;
             agentSo.FindProperty("environmentManager").objectReferenceValue = environmentManager;
+            agentSo.FindProperty("carryAnchor").objectReferenceValue = carryAnchor;
             agentSo.ApplyModifiedPropertiesWithoutUndo();
         }
 
@@ -631,6 +934,7 @@ namespace RLMovie.Editor
             agentSo.FindProperty("course").objectReferenceValue = course;
             agentSo.FindProperty("environmentManager").objectReferenceValue = environmentManager;
             agentSo.FindProperty("recordingHelper").objectReferenceValue = recordingHelper;
+            agentSo.FindProperty("carryAnchor").objectReferenceValue = FindDeepChild(agent.transform, "CarryAnchor");
             agentSo.FindProperty("startPosition").vector3Value = startAnchor.position;
             agentSo.FindProperty("meltdownFailDelay").floatValue = 0.42f;
             agentSo.FindProperty("meltdownCameraCutDelay").floatValue = 0.20f;
@@ -663,8 +967,8 @@ namespace RLMovie.Editor
             CreateBlock(parent, "StartHeaderFill", new Vector3(0f, shellHeaderY, -10.55f), new Vector3(8.8f, 0.36f, 0.24f), assets.BoundaryMaterial);
             CreateBlock(parent, "GoalHeaderFill", new Vector3(0f, shellHeaderY, 20.25f), new Vector3(8.8f, 0.36f, 0.24f), assets.BoundaryMaterial);
             CreateBlock(parent, "LaneDivider", new Vector3(0f, 0.8f, 2f), new Vector3(0.30f, 1.6f, 10f), assets.BoundaryMaterial);
-            CreateBlock(parent, "LaserLaneRail", new Vector3(-2.4f, 0.3f, 2f), new Vector3(2.2f, 0.6f, 0.18f), assets.BoundaryMaterial);
-            CreateBlock(parent, "ShockLaneRail", new Vector3(2.4f, 0.3f, 2f), new Vector3(2.2f, 0.6f, 0.18f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "LaserLaneRail", new Vector3(-2.4f, 0.05f, 2f), new Vector3(2.2f, 0.08f, 0.14f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "ShockLaneRail", new Vector3(2.4f, 0.05f, 2f), new Vector3(2.2f, 0.08f, 0.14f), assets.BoundaryMaterial);
         }
 
         private static void BuildCourseReadability(Transform parent, GeneratedAssets assets)
@@ -673,27 +977,30 @@ namespace RLMovie.Editor
             BuildMergeGuide(parent, assets);
             BuildMergeChicane(parent, assets);
             BuildLaserWarningFloor(parent, assets);
+            BuildLaserObstacleField(parent, assets);
             BuildShockWarningFloor(parent, assets);
+            BuildShockObstacleField(parent, assets);
             BuildDoorThresholdGuide(parent, assets);
             BuildGoalRunway(parent, assets);
+            BuildGoalApproachObstacles(parent, assets);
             BuildZoneFrames(parent, assets);
             BuildGoalChamber(parent, assets);
         }
 
         private static void BuildStartBay(Transform parent, GeneratedAssets assets)
         {
-            CreateBlock(parent, "StartPad", new Vector3(0f, 0.04f, -9.8f), new Vector3(2.35f, 0.04f, 1.65f), assets.BoundaryMaterial);
-            CreateBlock(parent, "StartPadAccent", new Vector3(0f, 0.06f, -9.8f), new Vector3(1.75f, 0.02f, 1.05f), assets.GoalMaterial);
-            CreateBlock(parent, "StartGuideLeft", new Vector3(-1.15f, 0.08f, -8.35f), new Vector3(0.16f, 0.02f, 1.05f), assets.GoalMaterial);
-            CreateBlock(parent, "StartGuideRight", new Vector3(1.15f, 0.08f, -8.35f), new Vector3(0.16f, 0.02f, 1.05f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "StartPad", new Vector3(0f, 0.04f, -9.8f), new Vector3(2.35f, 0.04f, 1.65f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "StartPadAccent", new Vector3(0f, 0.06f, -9.8f), new Vector3(1.75f, 0.02f, 1.05f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "StartGuideLeft", new Vector3(-1.15f, 0.08f, -8.35f), new Vector3(0.16f, 0.02f, 1.05f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "StartGuideRight", new Vector3(1.15f, 0.08f, -8.35f), new Vector3(0.16f, 0.02f, 1.05f), assets.GoalMaterial);
         }
 
         private static void BuildMergeGuide(Transform parent, GeneratedAssets assets)
         {
-            CreateBlock(parent, "MergeSpineA", new Vector3(0f, 0.045f, 7.4f), new Vector3(0.42f, 0.03f, 2.2f), assets.GoalMaterial);
-            CreateBlock(parent, "MergeSpineB", new Vector3(0f, 0.045f, 10.8f), new Vector3(0.42f, 0.03f, 1.8f), assets.GoalMaterial);
-            CreateBlock(parent, "MergeChevronLeft", new Vector3(-0.70f, 0.045f, 7.0f), new Vector3(0.18f, 0.03f, 1.7f), assets.GoalMaterial, Quaternion.Euler(0f, 28f, 0f));
-            CreateBlock(parent, "MergeChevronRight", new Vector3(0.70f, 0.045f, 7.0f), new Vector3(0.18f, 0.03f, 1.7f), assets.GoalMaterial, Quaternion.Euler(0f, -28f, 0f));
+            CreateVisualBlock(parent, "MergeSpineA", new Vector3(0f, 0.045f, 7.4f), new Vector3(0.42f, 0.03f, 2.2f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "MergeSpineB", new Vector3(0f, 0.045f, 10.8f), new Vector3(0.42f, 0.03f, 1.8f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "MergeChevronLeft", new Vector3(-0.70f, 0.045f, 7.0f), new Vector3(0.18f, 0.03f, 1.7f), assets.GoalMaterial, Quaternion.Euler(0f, 28f, 0f));
+            CreateVisualBlock(parent, "MergeChevronRight", new Vector3(0.70f, 0.045f, 7.0f), new Vector3(0.18f, 0.03f, 1.7f), assets.GoalMaterial, Quaternion.Euler(0f, -28f, 0f));
         }
 
         private static void BuildMergeChicane(Transform parent, GeneratedAssets assets)
@@ -708,22 +1015,36 @@ namespace RLMovie.Editor
 
         private static void BuildLaserWarningFloor(Transform parent, GeneratedAssets assets)
         {
-            CreateBlock(parent, "LaserHoldPad", new Vector3(-2.35f, 0.04f, -0.7f), new Vector3(1.55f, 0.03f, 1.25f), assets.BoundaryMaterial);
-            CreateBlock(parent, "LaserHoldPadAccent", new Vector3(-2.35f, 0.06f, -0.7f), new Vector3(1.15f, 0.02f, 0.82f), assets.LaserMaterial);
+            CreateVisualBlock(parent, "LaserHoldPad", new Vector3(-2.35f, 0.04f, -0.7f), new Vector3(1.55f, 0.03f, 1.25f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "LaserHoldPadAccent", new Vector3(-2.35f, 0.06f, -0.7f), new Vector3(1.15f, 0.02f, 0.82f), assets.LaserMaterial);
 
             float[] warningSlices = { -0.3f, 0.5f, 1.3f, 2.1f, 2.9f };
             foreach (float z in warningSlices)
             {
-                CreateBlock(parent, $"LaserWarning_{z:+0.0;-0.0;0.0}", new Vector3(-2.35f, 0.05f, z), new Vector3(1.55f, 0.025f, 0.18f), assets.LaserMaterial);
+                CreateVisualBlock(parent, $"LaserWarning_{z:+0.0;-0.0;0.0}", new Vector3(-2.35f, 0.05f, z), new Vector3(1.55f, 0.025f, 0.18f), assets.LaserMaterial);
             }
+        }
+
+        private static void BuildLaserObstacleField(Transform parent, GeneratedAssets assets)
+        {
+            BuildCourseObstacle(parent, "LaserBaffleOuter", new Vector3(-3.72f, 0.50f, 0.10f), new Vector3(0.58f, 1.00f, 1.20f), assets.BoundaryMaterial, assets.LaserMaterial);
+            BuildCourseObstacle(parent, "LaserBaffleInner", new Vector3(-1.05f, 0.50f, 2.15f), new Vector3(0.74f, 1.00f, 1.10f), assets.BoundaryMaterial, assets.GoalMaterial);
+            BuildCourseObstacle(parent, "LaserBaffleExit", new Vector3(-3.08f, 0.50f, 3.55f), new Vector3(0.50f, 1.00f, 0.78f), assets.BoundaryMaterial, assets.LaserMaterial);
         }
 
         private static void BuildShockWarningFloor(Transform parent, GeneratedAssets assets)
         {
-            CreateBlock(parent, "ShockHoldPad", new Vector3(2.35f, 0.04f, -0.2f), new Vector3(1.55f, 0.03f, 1.45f), assets.BoundaryMaterial);
-            CreateBlock(parent, "ShockHoldPadAccent", new Vector3(2.35f, 0.06f, -0.2f), new Vector3(1.15f, 0.02f, 0.95f), assets.ShockOffMaterial);
-            CreateBlock(parent, "ShockSideGuideLeft", new Vector3(1.30f, 0.055f, 1.8f), new Vector3(0.12f, 0.02f, 3.55f), assets.ShockOffMaterial);
-            CreateBlock(parent, "ShockSideGuideRight", new Vector3(3.40f, 0.055f, 1.8f), new Vector3(0.12f, 0.02f, 3.55f), assets.ShockOffMaterial);
+            CreateVisualBlock(parent, "ShockHoldPad", new Vector3(2.35f, 0.04f, -0.2f), new Vector3(1.55f, 0.03f, 1.45f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "ShockHoldPadAccent", new Vector3(2.35f, 0.06f, -0.2f), new Vector3(1.15f, 0.02f, 0.95f), assets.ShockOffMaterial);
+            CreateVisualBlock(parent, "ShockSideGuideLeft", new Vector3(1.30f, 0.055f, 1.8f), new Vector3(0.12f, 0.02f, 3.55f), assets.ShockOffMaterial);
+            CreateVisualBlock(parent, "ShockSideGuideRight", new Vector3(3.40f, 0.055f, 1.8f), new Vector3(0.12f, 0.02f, 3.55f), assets.ShockOffMaterial);
+        }
+
+        private static void BuildShockObstacleField(Transform parent, GeneratedAssets assets)
+        {
+            BuildCourseObstacle(parent, "ShockBaffleOuter", new Vector3(3.08f, 0.50f, 0.25f), new Vector3(0.56f, 1.00f, 1.24f), assets.BoundaryMaterial, assets.ShockOnMaterial);
+            BuildCourseObstacle(parent, "ShockBaffleInner", new Vector3(1.88f, 0.50f, 2.15f), new Vector3(0.76f, 1.00f, 1.08f), assets.BoundaryMaterial, assets.GoalMaterial);
+            BuildCourseObstacle(parent, "ShockBaffleExit", new Vector3(2.96f, 0.50f, 4.15f), new Vector3(0.52f, 1.00f, 0.92f), assets.BoundaryMaterial, assets.ShockOnMaterial);
         }
 
         private static void BuildDoorThresholdGuide(Transform parent, GeneratedAssets assets)
@@ -732,18 +1053,24 @@ namespace RLMovie.Editor
             for (int i = 0; i < thresholdSlices.Length; i++)
             {
                 Material material = i % 2 == 0 ? assets.LaserMaterial : assets.DoorPanelMaterial;
-                CreateBlock(parent, $"DoorThreshold_{i}", new Vector3(0f, 0.05f, thresholdSlices[i]), new Vector3(2.95f, 0.025f, 0.16f), material);
+                CreateVisualBlock(parent, $"DoorThreshold_{i}", new Vector3(0f, 0.05f, thresholdSlices[i]), new Vector3(2.95f, 0.025f, 0.16f), material);
             }
         }
 
         private static void BuildGoalRunway(Transform parent, GeneratedAssets assets)
         {
-            CreateBlock(parent, "GoalRunwayBase", new Vector3(0f, 0.04f, 16.3f), new Vector3(2.65f, 0.03f, 3.45f), assets.BoundaryMaterial);
-            CreateBlock(parent, "GoalRunwayCenter", new Vector3(0f, 0.06f, 16.7f), new Vector3(0.50f, 0.02f, 2.45f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalRunwayLeft", new Vector3(-1.05f, 0.06f, 16.7f), new Vector3(0.18f, 0.02f, 2.05f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalRunwayRight", new Vector3(1.05f, 0.06f, 16.7f), new Vector3(0.18f, 0.02f, 2.05f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalDockRingA", new Vector3(0f, 0.07f, 18f), new Vector3(1.85f, 0.02f, 0.18f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalDockRingB", new Vector3(0f, 0.07f, 18f), new Vector3(0.18f, 0.02f, 1.85f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalRunwayBase", new Vector3(0f, 0.04f, 16.3f), new Vector3(2.65f, 0.03f, 3.45f), assets.BoundaryMaterial);
+            CreateVisualBlock(parent, "GoalRunwayCenter", new Vector3(0f, 0.06f, 16.7f), new Vector3(0.50f, 0.02f, 2.45f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalRunwayLeft", new Vector3(-1.05f, 0.06f, 16.7f), new Vector3(0.18f, 0.02f, 2.05f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalRunwayRight", new Vector3(1.05f, 0.06f, 16.7f), new Vector3(0.18f, 0.02f, 2.05f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalDockRingA", new Vector3(0f, 0.07f, 18f), new Vector3(1.85f, 0.02f, 0.18f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalDockRingB", new Vector3(0f, 0.07f, 18f), new Vector3(0.18f, 0.02f, 1.85f), assets.GoalMaterial);
+        }
+
+        private static void BuildGoalApproachObstacles(Transform parent, GeneratedAssets assets)
+        {
+            BuildCourseObstacle(parent, "GoalApproachLeft", new Vector3(-2.55f, 0.46f, 14.10f), new Vector3(4.00f, 0.92f, 0.32f), assets.BoundaryMaterial, assets.GoalMaterial);
+            BuildCourseObstacle(parent, "GoalApproachRight", new Vector3(2.55f, 0.46f, 15.55f), new Vector3(4.00f, 0.92f, 0.32f), assets.BoundaryMaterial, assets.LaserMaterial);
         }
 
         private static void BuildZoneFrames(Transform parent, GeneratedAssets assets)
@@ -758,10 +1085,10 @@ namespace RLMovie.Editor
             CreateBlock(parent, "GoalPillarLeft", new Vector3(-2.15f, 1.45f, 18f), new Vector3(0.38f, 2.9f, 0.42f), assets.BoundaryMaterial);
             CreateBlock(parent, "GoalPillarRight", new Vector3(2.15f, 1.45f, 18f), new Vector3(0.38f, 2.9f, 0.42f), assets.BoundaryMaterial);
             CreateBlock(parent, "GoalLintel", new Vector3(0f, 2.78f, 18f), new Vector3(4.5f, 0.18f, 0.42f), assets.BoundaryMaterial);
-            CreateBlock(parent, "GoalLightBar", new Vector3(0f, 2.48f, 18.18f), new Vector3(3.2f, 0.10f, 0.06f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalFrameFloorLeft", new Vector3(-1.6f, 0.045f, 17.85f), new Vector3(0.18f, 0.02f, 1.45f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalFrameFloorRight", new Vector3(1.6f, 0.045f, 17.85f), new Vector3(0.18f, 0.02f, 1.45f), assets.GoalMaterial);
-            CreateBlock(parent, "GoalFrameRear", new Vector3(0f, 0.045f, 19.15f), new Vector3(1.75f, 0.02f, 0.18f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalLightBar", new Vector3(0f, 2.48f, 18.18f), new Vector3(3.2f, 0.10f, 0.06f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalFrameFloorLeft", new Vector3(-1.6f, 0.045f, 17.85f), new Vector3(0.18f, 0.02f, 1.45f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalFrameFloorRight", new Vector3(1.6f, 0.045f, 17.85f), new Vector3(0.18f, 0.02f, 1.45f), assets.GoalMaterial);
+            CreateVisualBlock(parent, "GoalFrameRear", new Vector3(0f, 0.045f, 19.15f), new Vector3(1.75f, 0.02f, 0.18f), assets.GoalMaterial);
 
             CreateBlock(parent, "GoalEnergyPostLeft", new Vector3(-1.3f, 0.8f, 16.9f), new Vector3(0.18f, 1.45f, 0.18f), assets.BoundaryMaterial);
             CreateBlock(parent, "GoalEnergyPostRight", new Vector3(1.3f, 0.8f, 16.9f), new Vector3(0.18f, 1.45f, 0.18f), assets.BoundaryMaterial);
@@ -874,8 +1201,8 @@ namespace RLMovie.Editor
             GameObject root = CreateChild(parent, "LaserGate");
             root.transform.position = new Vector3(-2.35f, 0f, 1.3f);
 
-            CreateBlock(root.transform, "LaserPostLeft", new Vector3(-0.9f, 1.2f, 0f), new Vector3(0.18f, 2.4f, 0.18f), assets.BoundaryMaterial);
-            CreateBlock(root.transform, "LaserPostRight", new Vector3(0.9f, 1.2f, 0f), new Vector3(0.18f, 2.4f, 0.18f), assets.BoundaryMaterial);
+            CreateVisualBlock(root.transform, "LaserPostLeft", new Vector3(-0.9f, 1.2f, 0f), new Vector3(0.18f, 2.4f, 0.18f), assets.BoundaryMaterial);
+            CreateVisualBlock(root.transform, "LaserPostRight", new Vector3(0.9f, 1.2f, 0f), new Vector3(0.18f, 2.4f, 0.18f), assets.BoundaryMaterial);
 
             Transform pivot = CreateChild(root.transform, "LaserPivot").transform;
             pivot.localPosition = new Vector3(0f, 1.25f, 0f);
@@ -1317,13 +1644,48 @@ namespace RLMovie.Editor
             ReactorCoreDeliveryHud hud = GetOrAddComponent<ReactorCoreDeliveryHud>(environmentRoot);
             SerializedObject hudSo = new SerializedObject(hud);
             hudSo.FindProperty("course").objectReferenceValue = course;
-            hudSo.FindProperty("hideWhenStable").boolValue = false;
+            hudSo.FindProperty("hideWhenStable").boolValue = true;
             hudSo.ApplyModifiedPropertiesWithoutUndo();
         }
 
         private static GameObject CreateBlock(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material material)
         {
             return CreateBlock(parent, name, localPosition, localScale, material, Quaternion.identity);
+        }
+
+        private static GameObject CreateVisualBlock(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material material)
+        {
+            return CreateVisualBlock(parent, name, localPosition, localScale, material, Quaternion.identity);
+        }
+
+        private static GameObject CreateVisualBlock(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material material, Quaternion localRotation)
+        {
+            GameObject block = CreateBlock(parent, name, localPosition, localScale, material, localRotation);
+            DestroyCollider(block);
+            return block;
+        }
+
+        private static void BuildCourseObstacle(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Material bodyMaterial, Material accentMaterial)
+        {
+            GameObject blocker = CreateBlock(parent, name, localPosition, localScale, bodyMaterial);
+            float accentY = Mathf.Clamp(localScale.y * 0.38f, 0.18f, 0.40f);
+            float accentHeight = Mathf.Clamp(localScale.y * 0.14f, 0.06f, 0.10f);
+            float accentDepth = Mathf.Clamp(localScale.z * 0.18f, 0.06f, 0.14f);
+            float frontZ = (localScale.z * 0.5f) - 0.02f;
+
+            CreateVisualBlock(
+                blocker.transform,
+                "TopAccent",
+                new Vector3(0f, accentY, 0f),
+                new Vector3(localScale.x * 0.72f, accentHeight, accentDepth),
+                accentMaterial);
+
+            CreateVisualBlock(
+                blocker.transform,
+                "FrontStrip",
+                new Vector3(0f, 0f, frontZ),
+                new Vector3(localScale.x * 0.46f, Mathf.Clamp(localScale.y * 0.18f, 0.10f, 0.18f), 0.04f),
+                accentMaterial);
         }
 
         private static ParticleSystem CreateGoalIgnitionFallback(Transform parent)
@@ -1595,10 +1957,10 @@ namespace RLMovie.Editor
             root.transform.localPosition = center;
 
             float halfWidth = width * 0.5f;
-            CreateBlock(root.transform, "LeftPost", new Vector3(-halfWidth, height * 0.5f, 0f), new Vector3(0.16f, height, depth), frameMaterial);
-            CreateBlock(root.transform, "RightPost", new Vector3(halfWidth, height * 0.5f, 0f), new Vector3(0.16f, height, depth), frameMaterial);
-            CreateBlock(root.transform, "TopBeam", new Vector3(0f, height, 0f), new Vector3(width + 0.18f, 0.14f, depth), frameMaterial);
-            CreateBlock(root.transform, "AccentBar", new Vector3(0f, height - 0.18f, 0.02f), new Vector3(width - 0.25f, 0.06f, depth - 0.18f), accentMaterial);
+            CreateVisualBlock(root.transform, "LeftPost", new Vector3(-halfWidth, height * 0.5f, 0f), new Vector3(0.16f, height, depth), frameMaterial);
+            CreateVisualBlock(root.transform, "RightPost", new Vector3(halfWidth, height * 0.5f, 0f), new Vector3(0.16f, height, depth), frameMaterial);
+            CreateVisualBlock(root.transform, "TopBeam", new Vector3(0f, height, 0f), new Vector3(width + 0.18f, 0.14f, depth), frameMaterial);
+            CreateVisualBlock(root.transform, "AccentBar", new Vector3(0f, height - 0.18f, 0.02f), new Vector3(width - 0.25f, 0.06f, depth - 0.18f), accentMaterial);
         }
 
         private static void BuildEmergencyBeacon(Transform parent, string name, Vector3 localPosition, Material glowMaterial, Material housingMaterial)
@@ -2161,6 +2523,20 @@ namespace RLMovie.Editor
             public Transform CoreSpawnAnchor { get; set; }
             public Rigidbody ObjectiveCore { get; set; }
             public Renderer CoreRenderer { get; set; }
+        }
+
+        private sealed class CourseBuildResult
+        {
+            public Transform StartAnchor { get; set; }
+            public PickupVisuals PickupVisuals { get; set; }
+            public SweepingLaserHazard LaserHazard { get; set; }
+            public ShockFloorHazard ShockFloorHazard { get; set; }
+            public BlastDoorHazard BlastDoorHazard { get; set; }
+            public Transform LaserCheckpoint { get; set; }
+            public Transform ShockCheckpoint { get; set; }
+            public Transform DoorCheckpoint { get; set; }
+            public Transform GoalSocket { get; set; }
+            public GoalVisuals GoalVisuals { get; set; }
         }
 
         private sealed class SupportPropRig

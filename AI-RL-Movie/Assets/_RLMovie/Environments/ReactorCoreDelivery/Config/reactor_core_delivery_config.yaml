@@ -32,90 +32,71 @@ behaviors:
 environment_parameters:
   randomization_strength:
     curriculum:
-      - name: WalkUp
+      - name: PickupAndGrab
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.18
-        value: 0.08
-      - name: CoreEscort
+        value: 0.05
+      - name: MandatoryGates
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.62
-        value: 0.32
+        value: 0.28
       - name: DeliveryPressure
-        value: 0.58
-
-  support_prop_jitter:
-    curriculum:
-      - name: WalkUp
-        completion_criteria:
-          measure: reward
-          behavior: ReactorCoreDeliveryAgent
-          min_lesson_length: 200
-          threshold: 0.18
-        value: 0.04
-      - name: CoreEscort
-        completion_criteria:
-          measure: reward
-          behavior: ReactorCoreDeliveryAgent
-          min_lesson_length: 200
-          threshold: 0.62
-        value: 0.16
-      - name: DeliveryPressure
-        value: 0.34
+        value: 0.52
 
   phase_jitter:
     curriculum:
-      - name: WalkUp
+      - name: PickupAndGrab
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.18
-        value: 0.02
-      - name: CoreEscort
+        value: 0.00
+      - name: MandatoryGates
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.62
-        value: 0.20
+        value: 0.18
       - name: DeliveryPressure
-        value: 0.38
+        value: 0.34
 
   laser_speed_scale:
     curriculum:
-      - name: WalkUp
+      - name: PickupAndGrab
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.18
-        value: 0.52
-      - name: CoreEscort
+        value: 0.42
+      - name: MandatoryGates
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.62
-        value: 0.88
+        value: 0.86
       - name: DeliveryPressure
-        value: 1.08
+        value: 1.06
 
   shock_active_scale:
     curriculum:
-      - name: WalkUp
+      - name: PickupAndGrab
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.18
-        value: 0.38
-      - name: CoreEscort
+        value: 0.34
+      - name: MandatoryGates
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
@@ -123,42 +104,42 @@ environment_parameters:
           threshold: 0.62
         value: 0.76
       - name: DeliveryPressure
-        value: 1.02
+        value: 1.00
 
   door_open_scale:
     curriculum:
-      - name: WalkUp
+      - name: PickupAndGrab
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.18
-        value: 1.65
-      - name: CoreEscort
+        value: 1.75
+      - name: MandatoryGates
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.62
-        value: 1.12
+        value: 1.18
       - name: DeliveryPressure
-        value: 0.84
+        value: 0.88
 
   delivery_deadline_scale:
     curriculum:
-      - name: WalkUp
+      - name: PickupAndGrab
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.18
-        value: 1.38
-      - name: CoreEscort
+        value: 1.55
+      - name: MandatoryGates
         completion_criteria:
           measure: reward
           behavior: ReactorCoreDeliveryAgent
           min_lesson_length: 200
           threshold: 0.62
-        value: 1.12
+        value: 1.16
       - name: DeliveryPressure
-        value: 0.96
+        value: 0.94

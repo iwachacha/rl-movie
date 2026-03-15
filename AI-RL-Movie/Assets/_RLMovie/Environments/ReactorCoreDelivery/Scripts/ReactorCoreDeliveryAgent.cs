@@ -11,7 +11,7 @@ using UnityEditor;
 namespace RLMovie.Environments.ReactorCoreDelivery
 {
     /// <summary>
-    /// Learns to escort, push, and settle a loose reactor core into the final socket.
+    /// Learns to grab, roll, or carry a loose reactor core through a mandatory hazard spine.
     /// </summary>
     public class ReactorCoreDeliveryAgent : BaseRLAgent
     {
@@ -19,24 +19,26 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         [SerializeField] private ReactorCoreDeliveryCourse course;
         [SerializeField] private EnvironmentManager environmentManager;
         [SerializeField] private RecordingHelper recordingHelper;
+        [SerializeField] private Transform carryAnchor;
 
         [Header("=== Movement ===")]
-        [SerializeField] private float maxMoveSpeed = 4.5f;
+        [SerializeField] private float maxMoveSpeed = 4.6f;
         [SerializeField] private float acceleration = 22f;
-        [SerializeField] private float insertDistance = 1.2f;
-        [SerializeField] private float coreEngageDistance = 0.95f;
+        [SerializeField] private float coreEngageDistance = 1.0f;
+        [SerializeField] private float grabDistance = 0.95f;
 
         [Header("=== Rewards ===")]
         [SerializeField] private float engageCoreReward = 0.20f;
         [SerializeField] private float approachProgressRewardScale = 0.012f;
         [SerializeField] private float approachRegressionPenaltyScale = 0.008f;
         [SerializeField] private float coreProgressRewardScale = 0.018f;
-        [SerializeField] private float coreRegressionPenaltyScale = 0.01f;
+        [SerializeField] private float coreRegressionPenaltyScale = 0.010f;
         [SerializeField] private float coreSettleProgressRewardScale = 0.05f;
+        [SerializeField] private float gateBonus = 0.08f;
         [SerializeField] private float coreDockBonus = 0.25f;
-        [SerializeField] private float zoneBonus = 0.06f;
+        [SerializeField] private float coreLaserPenalty = 0.12f;
+        [SerializeField] private float coreShockPenalty = 0.08f;
         [SerializeField] private float stepPenalty = 0.00075f;
-        [SerializeField] private float emptyGoalPenalty = 0.03f;
         [SerializeField] private float successReward = 1.5f;
         [SerializeField] private float speedBonusMax = 0.75f;
         [SerializeField] private float lostCorePenalty = 1.0f;
@@ -45,6 +47,8 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         [Header("=== Shock Response ===")]
         [SerializeField] private float shockPenalty = 0.10f;
         [SerializeField] private float shockKnockback = 6.4f;
+        [SerializeField] private float shockReleaseImpulse = 2.6f;
+        [SerializeField] private float shockReleaseLift = 1.15f;
         [SerializeField] private float shockCooldown = 0.55f;
         [SerializeField] private float meltdownLaunchForce = 13.5f;
         [SerializeField] private float meltdownLiftForce = 8.0f;
@@ -60,11 +64,10 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         private float _previousApproachProgress;
         private float _previousCoreProgress;
         private float _previousDockReadiness;
-        private int _lastCoreZoneIndex;
+        private int _lastGateIndex;
         private float _shockRecoverRemaining;
         private bool _episodeFinished;
         private bool _hasEngagedCore;
-        private bool _emptyGoalPenaltyConsumed;
         private Coroutine _pendingFailRoutine;
 
         private void OnValidate()
@@ -102,7 +105,6 @@ namespace RLMovie.Environments.ReactorCoreDelivery
 
             _episodeFinished = false;
             _hasEngagedCore = false;
-            _emptyGoalPenaltyConsumed = false;
             _shockRecoverRemaining = 0f;
             EnsureSceneReferencesResolved();
             recordingHelper?.ClearTemporaryBlackout();
@@ -122,7 +124,7 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             _previousApproachProgress = course != null ? course.GetAgentToCoreProgress01(transform.position) : 0f;
             _previousCoreProgress = course != null ? course.GetCoreGoalProgress01() : 0f;
             _previousDockReadiness = course != null ? course.CoreDockReadiness01 : 0f;
-            _lastCoreZoneIndex = course != null ? course.GetCoreZoneIndex() : 0;
+            _lastGateIndex = course != null ? course.GetCoreGateIndex() : 0;
 
             _visualController = GetComponentInChildren<ReactorCoreDeliveryVisualController>();
             _visualController?.ResetState();
@@ -148,6 +150,33 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             {
                 recordingHelper = FindFirstObjectByType<RecordingHelper>();
                 changed |= recordingHelper != null;
+            }
+
+            if (carryAnchor == null)
+            {
+                Transform foundAnchor = transform.Find("CarryAnchor");
+                if (foundAnchor == null)
+                {
+                    foundAnchor = transform.GetComponentInChildren<Transform>(true);
+                }
+
+                if (foundAnchor != null && foundAnchor.name == "CarryAnchor")
+                {
+                    carryAnchor = foundAnchor;
+                    changed = true;
+                }
+                else if (foundAnchor != null)
+                {
+                    foreach (Transform child in transform.GetComponentsInChildren<Transform>(true))
+                    {
+                        if (child.name == "CarryAnchor")
+                        {
+                            carryAnchor = child;
+                            changed = true;
+                            break;
+                        }
+                    }
+                }
             }
 
             return changed;
@@ -195,13 +224,42 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                 _shockRecoverRemaining = Mathf.Max(0f, _shockRecoverRemaining - Time.fixedDeltaTime);
             }
 
+            int interactionAction = actions.DiscreteActions.Length > 0
+                ? actions.DiscreteActions[0]
+                : 0;
+
+            if (course != null && _rb != null && carryAnchor != null)
+            {
+                if (interactionAction == 1)
+                {
+                    course.TryGrabCore(_rb, carryAnchor, grabDistance);
+                }
+                else if (interactionAction == 2)
+                {
+                    course.ReleaseHeldCore(startCooldown: true);
+                }
+            }
+
             _visualController?.SetMotion(_rb != null ? _rb.linearVelocity : Vector3.zero);
             course?.UpdateObjectiveState();
 
-            if (!_hasEngagedCore && course != null && course.IsAgentNearCore(transform.position, coreEngageDistance))
+            if (!_hasEngagedCore && course != null &&
+                (course.IsAgentNearCore(transform.position, coreEngageDistance) ||
+                 course.IsHoldingCore ||
+                 course.HasCoreEnteredEscortPhase()))
             {
                 _hasEngagedCore = true;
                 AddTrackedReward(engageCoreReward);
+            }
+
+            if (course != null && course.TryConsumeCoreLaserPenalty())
+            {
+                AddTrackedReward(-coreLaserPenalty);
+            }
+
+            if (course != null && course.TryConsumeCoreShockPenalty())
+            {
+                AddTrackedReward(-coreShockPenalty);
             }
 
             if (course != null && course.TryConsumeCoreDockBonus())
@@ -209,7 +267,17 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                 AddTrackedReward(coreDockBonus);
             }
 
-            if (course != null && course.CanCompleteDelivery(transform.position, insertDistance))
+            if (course != null)
+            {
+                int gateIndex = course.GetCoreGateIndex();
+                if (gateIndex > _lastGateIndex)
+                {
+                    AddTrackedReward((gateIndex - _lastGateIndex) * gateBonus);
+                    _lastGateIndex = gateIndex;
+                }
+            }
+
+            if (course != null && course.IsCoreDocked)
             {
                 _episodeFinished = true;
                 course.NotifySuccess();
@@ -223,20 +291,6 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             {
                 TriggerMeltdownTimeout();
                 return;
-            }
-
-            bool isNearGoal = course != null && course.IsAgentNearGoal(transform.position, insertDistance);
-            if (course != null && !course.IsCoreDocked && isNearGoal)
-            {
-                if (!_emptyGoalPenaltyConsumed)
-                {
-                    AddTrackedReward(-emptyGoalPenalty);
-                    _emptyGoalPenaltyConsumed = true;
-                }
-            }
-            else
-            {
-                _emptyGoalPenaltyConsumed = false;
             }
 
             if (environmentManager != null && environmentManager.HasFallen(transform))
@@ -288,6 +342,7 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                     }
 
                     _previousApproachProgress = progress;
+                    _previousCoreProgress = course.GetCoreGoalProgress01();
                     _previousDockReadiness = course.CoreDockReadiness01;
                 }
                 else
@@ -306,13 +361,6 @@ namespace RLMovie.Environments.ReactorCoreDelivery
 
                     _previousCoreProgress = progress;
 
-                    int zoneIndex = course.GetCoreZoneIndex();
-                    if (zoneIndex > _lastCoreZoneIndex)
-                    {
-                        AddTrackedReward(zoneBonus);
-                        _lastCoreZoneIndex = zoneIndex;
-                    }
-
                     float dockReadiness = course.CoreDockReadiness01;
                     float dockReadinessDelta = dockReadiness - _previousDockReadiness;
                     if (dockReadinessDelta > 0f)
@@ -321,6 +369,7 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                     }
 
                     _previousDockReadiness = dockReadiness;
+                    _previousApproachProgress = course.GetAgentToCoreProgress01(transform.position);
                 }
             }
 
@@ -330,8 +379,10 @@ namespace RLMovie.Environments.ReactorCoreDelivery
         protected override void ProvideHeuristicInput(in ActionBuffers actionsOut)
         {
             var continuousActions = actionsOut.ContinuousActions;
+            var discreteActions = actionsOut.DiscreteActions;
             float moveX = 0f;
             float moveZ = 0f;
+            int interaction = 0;
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -353,10 +404,24 @@ namespace RLMovie.Environments.ReactorCoreDelivery
                 {
                     moveZ = 1f;
                 }
+
+                if (keyboard.eKey.wasPressedThisFrame)
+                {
+                    interaction = 1;
+                }
+                else if (keyboard.qKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                {
+                    interaction = 2;
+                }
             }
 
             continuousActions[0] = moveX;
             continuousActions[1] = moveZ;
+
+            if (discreteActions.Length > 0)
+            {
+                discreteActions[0] = interaction;
+            }
         }
 
         public void NotifyLaserHit()
@@ -382,17 +447,25 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             _shockRecoverRemaining = shockCooldown;
             AddTrackedReward(-shockPenalty);
 
+            Vector3 knockbackDirection = transform.position - hazardOrigin;
+            knockbackDirection.y = 0f;
+
+            if (knockbackDirection.sqrMagnitude < 0.001f)
+            {
+                knockbackDirection = Vector3.back;
+            }
+
             if (_rb != null)
             {
-                Vector3 knockbackDirection = transform.position - hazardOrigin;
-                knockbackDirection.y = 0f;
-
-                if (knockbackDirection.sqrMagnitude < 0.001f)
-                {
-                    knockbackDirection = Vector3.back;
-                }
-
                 _rb.AddForce(knockbackDirection.normalized * shockKnockback, ForceMode.VelocityChange);
+            }
+
+            if (course != null && course.IsHoldingCore)
+            {
+                Vector3 releaseImpulse =
+                    (knockbackDirection.normalized * shockReleaseImpulse) +
+                    (Vector3.up * shockReleaseLift);
+                course.ForceReleaseHeldCore(releaseImpulse);
             }
 
             course?.NotifyShockHit();

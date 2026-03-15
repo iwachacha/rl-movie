@@ -1,10 +1,14 @@
 using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 namespace RLMovie.Environments.ReactorCoreDelivery
 {
     [RequireComponent(typeof(BoxCollider))]
     public sealed class ShockFloorHazard : MonoBehaviour
     {
+        [SerializeField] private ReactorCoreDeliveryCourse course;
         [SerializeField] private Renderer[] panelRenderers = new Renderer[0];
         [SerializeField] private Renderer[] indicatorRenderers = new Renderer[0];
         [SerializeField] private Transform[] ramHeads = new Transform[0];
@@ -38,16 +42,29 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             }
         }
 
+        private void OnValidate()
+        {
+            ResolveCourseReference();
+
+#if UNITY_EDITOR
+            if (course != null)
+            {
+                EditorUtility.SetDirty(this);
+            }
+#endif
+        }
+
+        private void Awake()
+        {
+            ResolveCourseReference();
+            CacheRamRestPose();
+        }
+
         public void ResetCycle(float phaseOffset01, float activeScale)
         {
             _phaseOffset01 = phaseOffset01;
             _activeScale = Mathf.Max(0.35f, activeScale);
             UpdateVisualState();
-        }
-
-        private void Awake()
-        {
-            CacheRamRestPose();
         }
 
         private void Update()
@@ -66,6 +83,19 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             if (agent != null)
             {
                 agent.NotifyShockPulse(transform.position);
+                return;
+            }
+
+            Rigidbody otherBody = other.attachedRigidbody ?? other.GetComponentInParent<Rigidbody>();
+            if (otherBody == null)
+            {
+                return;
+            }
+
+            ResolveCourseReference();
+            if (course != null && !course.IsHoldingCore && course.IsObjectiveCore(otherBody))
+            {
+                course.NotifyCoreShockPulse(transform.position);
             }
         }
 
@@ -145,6 +175,14 @@ namespace RLMovie.Environments.ReactorCoreDelivery
             }
 
             return Mathf.SmoothStep(1f, 0f, (currentTime - retractStart) / Mathf.Max(0.01f, activeWindow - retractStart));
+        }
+
+        private void ResolveCourseReference()
+        {
+            if (course == null)
+            {
+                course = FindFirstObjectByType<ReactorCoreDeliveryCourse>();
+            }
         }
 
         private static void ApplyColors(Renderer[] renderers, Color baseColor, Color emissionColor)
