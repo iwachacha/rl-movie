@@ -8,15 +8,16 @@ description: Research the best currently-free Unity Asset Store assets for a spe
 ## Overview
 
 Find strong Unity Asset Store candidates for a concrete build idea without suggesting paid assets.
-Use live web research, keep "free only" as a hard rule, and rank candidates by idea fit before popularity.
+Use live web research, keep "free only" as a hard rule, and rank candidates by idea fit, visual lift per setup effort, and viewer readability before popularity.
 
 ## Workflow
 
 1. Translate the request into asset-search criteria.
+Read `../../references/project-direction.md` when the request is tied to concept choice, video quality, or overall production strategy.
 Ask only for missing constraints that materially change the answer: asset type, style, platform, render pipeline, Unity version, animation needs, poly budget, and whether the asset is visual-only or affects gameplay/tooling.
 If the user gives only a rough idea, infer a sensible first-pass search scope and state the assumption after researching.
 If the real question is whether the current repo inventory is already sufficient, use `asset-inventory-planning` first instead of jumping straight to outside research.
-If the request is part of scenario ideation, anchor the search to the current concept candidates and optimize for assets that make the chosen idea look richer without making implementation much harder.
+If the request is part of scenario ideation, anchor the search to the current concept candidates and optimize for assets that make the chosen idea look richer, more readable to non-experts, and easier to produce without making implementation much harder.
 
 2. Research the current Unity Asset Store before recommending anything.
 Browse live pages on `assetstore.unity.com`; do not rely on memory for price, ratings, review count, compatibility, or update status.
@@ -30,7 +31,7 @@ Reject candidates that clearly miss required render pipeline, Unity version, or 
 
 4. Compare candidates with the rubric in `references/evaluation-rubric.md`.
 Capture the specific evidence that matters: title, link, current price, publisher, rating, rating count, favorites, latest release date, original Unity version, render pipeline compatibility, package size when relevant, and notable caveats.
-Prioritize fit to the requested idea over raw popularity.
+Prioritize fit to the requested idea, visual leverage, and integration safety over raw popularity.
 
 5. Recommend a small, opinionated shortlist.
 Usually return 3 primary picks and 1-3 backups.
@@ -41,9 +42,11 @@ If the scenario concept becomes locked during the same turn, write the chosen as
 ## Guardrails
 
 - Keep "free only" absolute.
+- Prefer assets that make goals, hazards, scale, and motion easier to read on video.
 - Prefer assets with stronger social proof when fit is similar, but do not over-trust a high star rating with very few reviews.
 - Treat favorites and popularity as supporting signals, not replacements for compatibility and maintenance checks.
 - Call out stale packages, old original Unity versions, unclear pipeline support, or large setup overhead as risks.
+- Reject an asset when its setup burden would erase the speed advantage of using Asset Store content.
 - Clearly label any inference or unknown.
 - Include the date of research in the response because store data changes.
 

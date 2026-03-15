@@ -5,7 +5,9 @@
 - repo 共通ガードレールは `.agents/core/SKILL.md` に置く
 - タスク固有手順は `.agents/skills/*/SKILL.md` に置く
 - 長い事実、契約、命名規約、チェックリストは `.agents/references/*.md` に置く
+- 共有のコミュニケーション方針や context 節約方針は `.agents/core/SKILL.md` に集約し、各 skill に繰り返さない
 - skill から reference への導線は 1 hop に保ち、深い参照チェーンを作らない
+- skill 冒頭の reference 読込は、常時必須を最小にし、分岐条件があるものは条件付きで読む形にする
 - 正本の重複を避ける
 - `.agents/**` は UTF-8 を使う
 - skill の frontmatter は `name` と `description` のみ
@@ -13,3 +15,5 @@
 - ルーティングを変えたら `AGENTS.md`、該当 skill、workflow alias、関連 docs を一緒に更新する
 - 実装依存のルールは repo 実装で裏取りしてから書く
 - 生成物 / 取込物は編集対象と区別して明記する
+- 読み込みコストを意識し、まず検索や抜粋で確認し、全文読込は必要時のみ使う
+- 説明量を減らすときは、検証手順や安全条件ではなく、背景説明・例・重複を先に削る

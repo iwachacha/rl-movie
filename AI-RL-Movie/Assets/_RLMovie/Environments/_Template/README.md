@@ -10,7 +10,9 @@ What is standardized:
 - `scenario_manifest.yaml` contract shape
 - `training_config` in the manifest selects the active training YAML for validation, build, and Colab
 - `EnvironmentRoot`, `ScenarioGoldenSpine`, `EnvironmentManager`
-- `TrainingVisualizer`, `RecordingHelper`, and camera anchors
+- `TrainingVisualizer`, `RecordingHelper`, and wide/follow camera anchors
+- `ScenarioBroadcastOverlay` for viewer-facing HUD and reward popups
+- `ScenarioHighlightTracker` for sparse highlight + snapshot export
 - starter PPO config and naming alignment
 
 What should be customized per scenario:

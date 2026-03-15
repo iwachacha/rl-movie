@@ -72,23 +72,13 @@ namespace RLMovie.Common
             lastCompletedEpisodeCount = targetAgent.CompletedEpisodes;
             rewardHistory.Add(targetAgent.LastCompletedEpisodeReward);
 
-            if (rewardHistory.Count > maxDataPoints)
+            int clampedMaxDataPoints = Mathf.Max(2, maxDataPoints);
+            if (rewardHistory.Count > clampedMaxDataPoints)
             {
                 rewardHistory.RemoveAt(0);
             }
 
-            foreach (float reward in rewardHistory)
-            {
-                if (reward > maxReward)
-                {
-                    maxReward = reward;
-                }
-
-                if (reward < minReward)
-                {
-                    minReward = reward;
-                }
-            }
+            RecalculateRewardBounds();
         }
 
 #if !UNITY_SERVER
@@ -144,11 +134,12 @@ namespace RLMovie.Common
             if (rewardHistory.Count > 1)
             {
                 float range = Mathf.Max(maxReward - minReward, 0.01f);
+                float pointDivisor = Mathf.Max(1, rewardHistory.Count - 1);
 
                 for (int i = 1; i < rewardHistory.Count; i++)
                 {
-                    float x1 = graphX + (float)(i - 1) / (maxDataPoints - 1) * graphW;
-                    float x2 = graphX + (float)i / (maxDataPoints - 1) * graphW;
+                    float x1 = graphX + (i - 1) / pointDivisor * graphW;
+                    float x2 = graphX + i / pointDivisor * graphW;
                     float y1 = graphY + graphHeight - ((rewardHistory[i - 1] - minReward) / range) * graphHeight;
                     float y2 = graphY + graphHeight - ((rewardHistory[i] - minReward) / range) * graphHeight;
 
@@ -204,6 +195,33 @@ namespace RLMovie.Common
         private static bool IsHeadlessRuntime()
         {
             return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
+        }
+
+        private void RecalculateRewardBounds()
+        {
+            if (rewardHistory.Count == 0)
+            {
+                minReward = -1f;
+                maxReward = 1f;
+                return;
+            }
+
+            minReward = rewardHistory[0];
+            maxReward = rewardHistory[0];
+
+            for (int i = 1; i < rewardHistory.Count; i++)
+            {
+                float reward = rewardHistory[i];
+                if (reward > maxReward)
+                {
+                    maxReward = reward;
+                }
+
+                if (reward < minReward)
+                {
+                    minReward = reward;
+                }
+            }
         }
     }
 }

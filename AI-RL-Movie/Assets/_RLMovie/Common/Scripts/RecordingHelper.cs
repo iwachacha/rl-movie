@@ -78,6 +78,7 @@ namespace RLMovie.Common
         private bool _loggedDebugHotkeys;
         private bool _capturedRunInBackground;
         private bool _previousRunInBackground;
+        private readonly Dictionary<TrainingVisualizer, bool> _visualizerEnabledStates = new Dictionary<TrainingVisualizer, bool>();
         private readonly Dictionary<Renderer, GhostedRendererState> _ghostedRenderers = new Dictionary<Renderer, GhostedRendererState>();
         private float _temporaryBlackoutStartRealtime = -1f;
         private float _temporaryBlackoutEndRealtime = -1f;
@@ -106,12 +107,13 @@ namespace RLMovie.Common
                 return;
             }
 
-            OnRecordingStart();
+            StartCameraPreview();
         }
 
         private void OnDestroy()
         {
             ClearTemporaryBlackout();
+            RestoreVisualizerVisibilityAfterRecording();
             RestoreAllGhostedRenderers();
             RestoreRunInBackgroundSetting();
         }
@@ -144,6 +146,11 @@ namespace RLMovie.Common
 
         public void OnRecordingStart()
         {
+            if (_isRecording)
+            {
+                return;
+            }
+
             CacheSceneReferences();
             EnableRunInBackground();
 
@@ -154,11 +161,7 @@ namespace RLMovie.Common
 
             if (hideUIWhenRecording)
             {
-                var visualizers = FindObjectsByType<TrainingVisualizer>(FindObjectsSortMode.None);
-                foreach (var visualizer in visualizers)
-                {
-                    visualizer.enabled = false;
-                }
+                HideVisualizersForRecording();
             }
 
             Debug.Log("[RecordingHelper] Recording started");
@@ -166,19 +169,22 @@ namespace RLMovie.Common
 
         public void OnRecordingStop()
         {
+            if (!_isRecording)
+            {
+                RestoreDefaultView();
+                return;
+            }
+
             _isRecording = false;
             ClearTemporaryBlackout();
             RestoreAllGhostedRenderers();
 
             if (hideUIWhenRecording)
             {
-                var visualizers = FindObjectsByType<TrainingVisualizer>(FindObjectsSortMode.None);
-                foreach (var visualizer in visualizers)
-                {
-                    visualizer.enabled = true;
-                }
+                RestoreVisualizerVisibilityAfterRecording();
             }
 
+            RestoreRunInBackgroundSetting();
             RestoreDefaultView();
             Debug.Log("[RecordingHelper] Recording stopped");
         }
@@ -263,6 +269,51 @@ namespace RLMovie.Common
             {
                 NextCamera();
             }
+        }
+
+        private void StartCameraPreview()
+        {
+            CacheSceneReferences();
+            _currentCamIdx = 0;
+            ApplyCurrentViewPose(immediate: true);
+        }
+
+        private void HideVisualizersForRecording()
+        {
+            _visualizerEnabledStates.Clear();
+
+            var visualizers = FindObjectsByType<TrainingVisualizer>(FindObjectsSortMode.None);
+            foreach (var visualizer in visualizers)
+            {
+                if (visualizer == null)
+                {
+                    continue;
+                }
+
+                _visualizerEnabledStates[visualizer] = visualizer.enabled;
+                if (visualizer.enabled)
+                {
+                    visualizer.enabled = false;
+                }
+            }
+        }
+
+        private void RestoreVisualizerVisibilityAfterRecording()
+        {
+            if (_visualizerEnabledStates.Count == 0)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<TrainingVisualizer, bool> entry in _visualizerEnabledStates)
+            {
+                if (entry.Key != null)
+                {
+                    entry.Key.enabled = entry.Value;
+                }
+            }
+
+            _visualizerEnabledStates.Clear();
         }
 
         private void UpdateTemporaryBlackout()

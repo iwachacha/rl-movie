@@ -15,6 +15,8 @@ namespace RLMovie.Common
         [SerializeField] private EnvironmentManager environmentManager;
         [SerializeField] private TrainingVisualizer trainingVisualizer;
         [SerializeField] private RecordingHelper recordingHelper;
+        [SerializeField] private ScenarioBroadcastOverlay scenarioBroadcastOverlay;
+        [SerializeField] private ScenarioHighlightTracker scenarioHighlightTracker;
 
         [Header("=== Camera Anchors ===")]
         [SerializeField] private Transform defaultCameraView;
@@ -36,6 +38,10 @@ namespace RLMovie.Common
         public TrainingVisualizer TrainingVisualizer => trainingVisualizer;
 
         public RecordingHelper RecordingHelper => recordingHelper;
+
+        public ScenarioBroadcastOverlay ScenarioBroadcastOverlay => scenarioBroadcastOverlay;
+
+        public ScenarioHighlightTracker ScenarioHighlightTracker => scenarioHighlightTracker;
 
         public Transform DefaultCameraView => defaultCameraView;
 

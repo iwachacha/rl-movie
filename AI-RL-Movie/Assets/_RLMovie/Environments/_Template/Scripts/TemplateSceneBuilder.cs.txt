@@ -35,6 +35,10 @@ namespace RLMovie.Editor
                     agentSo.FindProperty("goalDistance").floatValue = 1.25f;
                     agentSo.FindProperty("startPosition").vector3Value = new Vector3(0f, 0.5f, 0f);
                     agentSo.ApplyModifiedProperties();
+
+                    var overlaySo = new SerializedObject(context.BroadcastOverlay);
+                    overlaySo.FindProperty("goalDescription").stringValue = "Reach the goal before falling off the platform.";
+                    overlaySo.ApplyModifiedProperties();
                 });
 
             Debug.Log("Created the golden starter scene for __SCENARIO_NAME__ at __SCENE_PATH__");

@@ -8,6 +8,12 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 - Then load only the matching skill under `c:\rl-movie\.agents\skills\`.
 - `c:\rl-movie\.agents\RULES.md` is a legacy shim, not the canonical rule source.
 - `c:\rl-movie\docs` is human-facing optional reference; do not auto-load it.
+- Keep context small: load only the skills, references, and file excerpts needed for the current task.
+
+## Working Style
+- Default to compact output: report outcomes, validation, blockers, and required decisions first.
+- Skip code walkthroughs and implementation narration unless the user asks for them or they affect risk.
+- Ask for user input only when a material decision cannot be resolved safely from repo context.
 
 ## Local Skills
 - `agents-maintenance`: edit `AGENTS.md`, `.agents/`, skill layout, or instruction architecture.

@@ -48,7 +48,7 @@ namespace RLMovie.Editor
             EnsureAssetFoldersForScene(scenePath);
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
-            var context = BuildSharedBackbone<TAgent>(scene, behaviorName, vectorObservationSize, actionSpec);
+            var context = BuildSharedBackbone<TAgent>(scene, scenePath, behaviorName, vectorObservationSize, actionSpec);
 
             configureScenario?.Invoke(context, (TAgent)context.Agent);
 
@@ -61,6 +61,7 @@ namespace RLMovie.Editor
 
         private static GoldenScenarioSceneContext BuildSharedBackbone<TAgent>(
             Scene scene,
+            string scenePath,
             string behaviorName,
             int vectorObservationSize,
             ActionSpec actionSpec)
@@ -103,7 +104,6 @@ namespace RLMovie.Editor
             var decisionRequester = agentObject.GetComponent<DecisionRequester>() ?? agentObject.AddComponent<DecisionRequester>();
             decisionRequester.DecisionPeriod = 5;
 
-            // ML-Agents Agent may auto-add BehaviorParameters, so reuse it instead of creating duplicates.
             var behaviorParameters = agentObject.GetComponent<BehaviorParameters>() ?? agentObject.AddComponent<BehaviorParameters>();
             behaviorParameters.BehaviorName = behaviorName;
             behaviorParameters.BehaviorType = BehaviorType.Default;
@@ -116,6 +116,7 @@ namespace RLMovie.Editor
             Transform defaultCameraView = CreateCameraAnchor(cameraRig.transform, "DefaultView", new Vector3(0f, 11f, -8f), Quaternion.Euler(50f, 0f, 0f));
             Transform recordLeft = CreateCameraAnchor(cameraRig.transform, "RecordWideLeft", new Vector3(-7f, 7f, -7f), Quaternion.Euler(35f, 45f, 0f));
             Transform recordRight = CreateCameraAnchor(cameraRig.transform, "RecordWideRight", new Vector3(7f, 7f, -7f), Quaternion.Euler(35f, -45f, 0f));
+            Transform recordFollowRear = CreateCameraAnchor(cameraRig.transform, "RecordFollowRear", new Vector3(0f, 3.5f, -5f), Quaternion.Euler(18f, 0f, 0f));
 
             mainCamera.transform.position = defaultCameraView.position;
             mainCamera.transform.rotation = defaultCameraView.rotation;
@@ -128,10 +129,30 @@ namespace RLMovie.Editor
             recordingObject.transform.SetParent(environmentRoot.transform);
             var recordingHelper = recordingObject.AddComponent<RecordingHelper>();
 
+            GameObject highlightObject = new GameObject("HighlightTracker");
+            highlightObject.transform.SetParent(environmentRoot.transform);
+            var highlightTracker = highlightObject.AddComponent<ScenarioHighlightTracker>();
+
+            GameObject overlayObject = new GameObject("BroadcastOverlay");
+            overlayObject.transform.SetParent(environmentRoot.transform);
+            var broadcastOverlay = overlayObject.AddComponent<ScenarioBroadcastOverlay>();
+
+            string scenarioName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
+
             AssignObjectReference(trainingVisualizer, "targetAgent", agent);
-            AssignObjectReference(recordingHelper, "cameraPositions", new[] { recordLeft, recordRight });
+            AssignObjectReference(recordingHelper, "cameraPositions", new[] { recordLeft, recordRight, recordFollowRear });
             AssignBool(recordingHelper, "enableCameraSwitching", true);
             AssignBool(recordingHelper, "hideUIWhenRecording", true);
+            AssignObjectReference(recordingHelper, "followTarget", agent.transform);
+            AssignInt(recordingHelper, "followCameraIndex", 2);
+
+            AssignObjectReference(highlightTracker, "targetAgent", agent);
+            AssignString(highlightTracker, "scenarioLabel", scenarioName);
+
+            AssignObjectReference(broadcastOverlay, "targetAgent", agent);
+            AssignObjectReference(broadcastOverlay, "highlightTracker", highlightTracker);
+            AssignString(broadcastOverlay, "scenarioLabel", scenarioName);
+            AssignString(broadcastOverlay, "goalDescription", "Describe the scenario goal for viewers.");
 
             AssignObjectReference(goldenSpine, "environmentRoot", environmentRoot.transform);
             AssignObjectReference(goldenSpine, "primaryAgent", agent);
@@ -139,8 +160,10 @@ namespace RLMovie.Editor
             AssignObjectReference(goldenSpine, "environmentManager", environmentManager);
             AssignObjectReference(goldenSpine, "trainingVisualizer", trainingVisualizer);
             AssignObjectReference(goldenSpine, "recordingHelper", recordingHelper);
+            AssignObjectReference(goldenSpine, "scenarioBroadcastOverlay", broadcastOverlay);
+            AssignObjectReference(goldenSpine, "scenarioHighlightTracker", highlightTracker);
             AssignObjectReference(goldenSpine, "defaultCameraView", defaultCameraView);
-            AssignObjectReference(goldenSpine, "recordingCameraViews", new[] { recordLeft, recordRight });
+            AssignObjectReference(goldenSpine, "recordingCameraViews", new[] { recordLeft, recordRight, recordFollowRear });
 
             return new GoldenScenarioSceneContext(
                 scene,
@@ -152,8 +175,10 @@ namespace RLMovie.Editor
                 mainCamera,
                 trainingVisualizer,
                 recordingHelper,
+                broadcastOverlay,
+                highlightTracker,
                 defaultCameraView,
-                new[] { recordLeft, recordRight });
+                new[] { recordLeft, recordRight, recordFollowRear });
         }
 
         private static Transform CreateCameraAnchor(Transform parent, string name, Vector3 position, Quaternion rotation)
@@ -212,7 +237,6 @@ namespace RLMovie.Editor
             }
 
             property.arraySize = values.Length;
-
             for (int i = 0; i < values.Length; i++)
             {
                 property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
@@ -233,6 +257,32 @@ namespace RLMovie.Editor
             property.boolValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+
+        private static void AssignInt(UnityEngine.Object target, string propertyName, int value)
+        {
+            var serializedObject = new SerializedObject(target);
+            SerializedProperty property = serializedObject.FindProperty(propertyName);
+            if (property == null)
+            {
+                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
+            }
+
+            property.intValue = value;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
+
+        private static void AssignString(UnityEngine.Object target, string propertyName, string value)
+        {
+            var serializedObject = new SerializedObject(target);
+            SerializedProperty property = serializedObject.FindProperty(propertyName);
+            if (property == null)
+            {
+                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
+            }
+
+            property.stringValue = value;
+            serializedObject.ApplyModifiedPropertiesWithoutUndo();
+        }
     }
 
     public sealed class GoldenScenarioSceneContext
@@ -247,6 +297,8 @@ namespace RLMovie.Editor
             Camera mainCamera,
             TrainingVisualizer trainingVisualizer,
             RecordingHelper recordingHelper,
+            ScenarioBroadcastOverlay broadcastOverlay,
+            ScenarioHighlightTracker highlightTracker,
             Transform defaultCameraView,
             Transform[] recordingCameraViews)
         {
@@ -259,6 +311,8 @@ namespace RLMovie.Editor
             MainCamera = mainCamera;
             TrainingVisualizer = trainingVisualizer;
             RecordingHelper = recordingHelper;
+            BroadcastOverlay = broadcastOverlay;
+            HighlightTracker = highlightTracker;
             DefaultCameraView = defaultCameraView;
             RecordingCameraViews = recordingCameraViews;
         }
@@ -280,6 +334,10 @@ namespace RLMovie.Editor
         public TrainingVisualizer TrainingVisualizer { get; }
 
         public RecordingHelper RecordingHelper { get; }
+
+        public ScenarioBroadcastOverlay BroadcastOverlay { get; }
+
+        public ScenarioHighlightTracker HighlightTracker { get; }
 
         public Transform DefaultCameraView { get; }
 

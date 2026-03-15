@@ -18,6 +18,7 @@ namespace RLMovie.Environments.__SCENARIO_NAME__
         [SerializeField] private float goalDistance = 1.25f;
 
         private Rigidbody _rb;
+        private float _previousDistanceToGoal;
 
         protected override void OnAgentInitialize()
         {
@@ -31,14 +32,16 @@ namespace RLMovie.Environments.__SCENARIO_NAME__
 
             if (envManager != null)
             {
-                transform.localPosition = envManager.GetRandomPosition(0.5f);
-                goal.localPosition = envManager.GetRandomEdgePosition(0.5f);
+                transform.position = envManager.GetRandomPosition(0.5f);
+                goal.position = envManager.GetRandomEdgePosition(0.5f);
             }
             else
             {
                 transform.localPosition = new Vector3(Random.Range(-4f, 4f), 0.5f, Random.Range(-4f, 4f));
                 goal.localPosition = new Vector3(Random.Range(-4f, 4f), 0.5f, Random.Range(-4f, 4f));
             }
+
+            _previousDistanceToGoal = GetDistanceToGoal();
         }
 
         protected override void CollectAgentObservations(VectorSensor sensor)
@@ -50,8 +53,8 @@ namespace RLMovie.Environments.__SCENARIO_NAME__
             Vector3 directionToGoal = (goal.localPosition - transform.localPosition).normalized;
             sensor.AddObservation(directionToGoal);
 
-            float distanceToGoal = Vector3.Distance(transform.localPosition, goal.localPosition);
-            sensor.AddObservation(distanceToGoal);
+            float distanceToGoal = GetDistanceToGoal();
+            sensor.AddObservation(GetNormalizedDistanceToGoal(distanceToGoal));
         }
 
         protected override void ExecuteActions(ActionBuffers actions)
@@ -61,26 +64,34 @@ namespace RLMovie.Environments.__SCENARIO_NAME__
 
             _rb.AddForce(new Vector3(moveX, 0f, moveZ) * moveForce, ForceMode.VelocityChange);
 
-            float distanceToGoal = Vector3.Distance(transform.localPosition, goal.localPosition);
+            float distanceToGoal = GetDistanceToGoal();
             if (distanceToGoal < goalDistance)
             {
-                Success(1.0f);
+                Success(1.0f, "goal_reached", "Goal Reached");
                 return;
             }
 
             if (envManager != null && envManager.HasFallen(transform))
             {
-                Fail(-1.0f);
+                Fail(-1.0f, "fell_out", "Fell Out");
                 return;
             }
             else if (transform.localPosition.y < -1f)
             {
-                Fail(-1.0f);
+                Fail(-1.0f, "fell_out", "Fell Out");
                 return;
             }
 
-            AddTrackedReward(-distanceToGoal * 0.001f);
+            float progressReward = (_previousDistanceToGoal - distanceToGoal) * 0.02f;
+            AddTrackedReward(progressReward, "progress", progressReward >= 0f ? "Closer" : "Drifted");
             AddTrackedReward(-0.0005f);
+
+            if (_previousDistanceToGoal > goalDistance * 1.35f && distanceToGoal <= goalDistance * 1.1f)
+            {
+                RecordMarkerEvent("near_miss_setup", "Close Call Building", progressReward, AgentTelemetryEventType.Info);
+            }
+
+            _previousDistanceToGoal = distanceToGoal;
         }
 
         protected override void ProvideHeuristicInput(in ActionBuffers actionsOut)
@@ -100,6 +111,22 @@ namespace RLMovie.Environments.__SCENARIO_NAME__
 
             continuousActions[0] = moveX;
             continuousActions[1] = moveZ;
+        }
+
+        private float GetDistanceToGoal()
+        {
+            return goal != null
+                ? Vector3.Distance(transform.localPosition, goal.localPosition)
+                : 0f;
+        }
+
+        private float GetNormalizedDistanceToGoal(float distanceToGoal)
+        {
+            float maxDistance = envManager != null
+                ? Mathf.Max(envManager.AreaRadius * 2f, 0.001f)
+                : 10f;
+
+            return Mathf.Clamp01(distanceToGoal / maxDistance);
         }
     }
 }

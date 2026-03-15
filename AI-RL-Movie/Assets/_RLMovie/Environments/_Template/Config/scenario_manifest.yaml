@@ -18,7 +18,7 @@ observation_contract:
     - "goal localPosition (3)"
     - "agent rigidbody linearVelocity (3)"
     - "normalized direction to goal (3)"
-    - "distance to goal (1)"
+    - "normalized distance to goal (1)"
 action_contract:
   type: continuous
   size: 2
@@ -30,7 +30,7 @@ reward_rules:
     - "Success: +1.0"
     - "Fail: -1.0"
   dense:
-    - "distanceReward: -distanceToGoal * 0.001"
+    - "progressReward: +(previousDistanceToGoal - distanceToGoal) * 0.02"
   penalties:
     - "step penalty: -0.0005"
 randomization_knobs:
@@ -58,7 +58,10 @@ camera_plan:
   recording_cuts:
     - "RecordWideLeft"
     - "RecordWideRight"
+    - "RecordFollowRear"
 acceptance_criteria:
+  - "ScenarioBroadcastOverlay 縺ｧ Goal 縺ｨ Latest event 繧貞ｮ滄圀縺ｧ縺阪ｋ"
+  - "ScenarioHighlightTracker 縺ｧ sparse export 縺碁壹ｋ"
   - "Heuristic で Goal 到達を再現できる"
   - "ScenarioGoldenSpine の参照が埋まっている"
   - "Validate Current Scenario が通る"

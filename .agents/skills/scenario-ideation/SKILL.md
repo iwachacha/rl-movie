@@ -9,11 +9,14 @@ description: Generate and refine video-worthy RL scenario ideas before specifica
 
 Invent concepts that feel worth watching as a video, not just worth implementing as a benchmark.
 Push for strong visual hooks and tonal variety, then compress ideas back into mechanics that are realistic for this repo.
+Prefer concepts that gain obvious visual value from free Asset Store assets or simple staging instead of bespoke content production.
 
 ## Workflow
 
 1. Frame the brief quickly.
-Infer missing constraints unless they change the answer materially. Useful constraints are: desired tone, target video vibe, appetite for imported assets, complexity budget, whether training should be quick or can be a stretch, whether the user wants many wild ideas or a tighter shortlist, and whether free Asset Store polish is a hard requirement.
+Read `../../references/project-direction.md` when the user's goal is the best overall content direction, asset-led planning, or audience clarity.
+Read `../../../../docs/PROJECT_CONCEPT.md` when the user is shaping the project's voice, deciding what kinds of AI behavior feel on-brand, or choosing between ideas based on weirdness, failure entertainment, or long-term ambition.
+Infer missing constraints unless they change the answer materially. Useful constraints are: desired tone, target video vibe, whether the concept should lean on already-imported assets or new free Asset Store assets, complexity budget, whether training should be quick or can be a stretch, whether the user wants many wild ideas or a tighter shortlist, and what flavor of AI behavior should dominate such as funny failure, eerie competence, exploit-seeking, or emergent social weirdness.
 
 2. Diverge before converging.
 Generate ideas across different emotional lanes instead of producing five near-duplicates. Read `references/idea-lenses.md` when you want fresh angles, stronger contrast, or a better balance of funny / impressive / strange / tense / creepy / satisfying.
@@ -43,7 +46,7 @@ For each candidate, usually include:
 If the user asks for ideas, end with one best-balance pick and one wild-card pick.
 Explain why the best-balance pick is the safest path to a compelling video.
 If the brief says to stay inside assets that are already imported in this repo, load `asset-inventory-planning` before locking the recommendation.
-If free Asset Store visuals are part of the brief, load `unity-free-asset-research` before locking the final recommendation so the idea and asset plan are chosen together.
+If new visuals from outside the repo would materially improve the concept, load `unity-free-asset-research` before locking the final recommendation so the idea and free-asset plan are chosen together.
 If the user chooses a concept, first create a short concept memo in `docs/ideas/` as a hand-off artifact, then load `scenario-spec` when the user wants to formalize it.
 
 7. Create a concept memo once the idea is locked.
@@ -69,6 +72,7 @@ Keep the memo short, directional, and stable enough to revisit later.
 - Favor visible cause-and-effect, escalating chaos, near misses, fragile objects, and clear outcomes.
 - Prefer one strong gimmick over many weak mechanics.
 - Make failure entertaining. A reset should still look funny, tense, awkward, or dramatic.
+- Prefer agents that feel slightly deranged, obsessive, exploit-hungry, or uncannily competent over agents that are merely optimal.
 - Use contrast aggressively: tiny agent vs giant system, calm setup vs sudden disaster, neat task vs absurd environment.
 - Default to ideas that can become a good thumbnail, title, and 10-second intro clip.
 
@@ -78,7 +82,7 @@ Keep the memo short, directional, and stable enough to revisit later.
 - Favor environments whose rules can be explained in a few sentences.
 - Prefer short-to-medium horizon tasks over sprawling multi-stage missions.
 - Use scripted set dressing to create the illusion of richness before adding real system complexity.
-- Treat imported assets as optional polish, not a prerequisite for the core idea.
+- Treat free Asset Store assets as a preferred accelerator for visual quality, but do not let asset choice force research-heavy mechanics.
 - When in doubt, simplify the agent behavior and enrich the spectacle through level design, props, camera angle, and reset choreography.
 
 ## Response Shape
@@ -94,5 +98,5 @@ Keep the memo short, directional, and stable enough to revisit later.
 - Use `references/idea-lenses.md` when ideas are too similar, too safe, or too difficult.
 - Once the user selects a concept, create a concept memo in `docs/ideas/` before moving to `scenario-spec`.
 - If the concept should be constrained by assets already present in the repo, use `asset-inventory-planning` before finalizing the memo so the memo reflects the current inventory rather than wishful imports.
-- If the concept depends heavily on free Asset Store visuals, use `unity-free-asset-research` before finalizing the memo so the memo includes the actual asset shortlist, intended usage, and compatibility notes.
+- If the concept depends heavily on new free Asset Store visuals, use `unity-free-asset-research` before finalizing the memo so the memo includes the actual asset shortlist, intended usage, and compatibility notes.
 - If the concept depends heavily on third-party content beyond selection, consider `asset-intake` after the concept is chosen.

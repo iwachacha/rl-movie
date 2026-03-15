@@ -55,11 +55,9 @@ namespace RLMovie.Editor
         [MenuItem("RLMovie/Build for Colab (Current Scene)")]
         public static void BuildCurrentScene()
         {
-            ColabBuildResult result = BuildCurrentSceneInternal(interactive: true);
-            if (!result.Success)
-            {
-                return;
-            }
+            ColabBuildResult result = BuildCurrentSceneInternal(interactive: false);
+            string title = result.Success ? "Build Complete" : "Build Blocked";
+            EditorStatus.ShowNonBlockingMessage(title, result.Message, isError: !result.Success);
         }
 
         public static ColabBuildResult BuildCurrentSceneSilent()

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
 using Unity.MLAgents.Sensors;
@@ -7,38 +9,50 @@ using UnityEngine.Rendering;
 namespace RLMovie.Common
 {
     /// <summary>
-    /// 全RLエージェントの基底クラス。
-    /// 新しいシナリオを作る際はこのクラスを継承してください。
+    /// Shared baseline for RL Movie agents.
+    /// Keeps episode stats, lightweight telemetry, and simple visual debug feedback.
     /// </summary>
     public abstract class BaseRLAgent : Agent
     {
         [Header("=== Base RL Agent Settings ===")]
-        [Tooltip("デバッグ用に報酬情報を表示するか")]
+        [Tooltip("Show lightweight on-screen debug info in local play mode.")]
         [SerializeField] protected bool showDebugInfo = true;
 
-        [Tooltip("エピソード開始時にエージェントを自動配置するか")]
+        [Tooltip("Reset the transform back to the configured start pose at each episode start.")]
         [SerializeField] protected bool autoResetPosition = true;
 
-        [Tooltip("エージェントの初期位置")]
+        [Tooltip("Agent start position used when auto reset is enabled.")]
         [SerializeField] protected Vector3 startPosition = Vector3.zero;
 
-        [Tooltip("エージェントの初期回転")]
+        [Tooltip("Agent start rotation used when auto reset is enabled.")]
         [SerializeField] protected Quaternion startRotation = Quaternion.identity;
 
-        // --- エピソード統計 ---
+        [Tooltip("Recent telemetry entries kept for video HUD and highlight extraction.")]
+        [Min(4)]
+        [SerializeField] private int maxTelemetryEntries = 24;
+
         protected int totalEpisodes = 0;
         protected int successCount = 0;
         protected int failCount = 0;
         protected float episodeReward = 0f;
         protected float lastCompletedEpisodeReward = 0f;
+        protected float lastCompletedEpisodeDuration = 0f;
 
-        // --- ビジュアルフィードバック ---
+        private readonly List<AgentTelemetryEvent> _recentTelemetry = new List<AgentTelemetryEvent>();
+        private long _nextTelemetrySequenceId = 1;
+        private AgentTelemetryEvent _latestTelemetry;
+        private bool _hasLatestTelemetry;
+        private float _episodeStartTimeSeconds = 0f;
+        private string _lastTerminalReason = "not_finished";
+        private string _lastTerminalMessage = "Episode in progress";
+
         private Renderer _agentRenderer;
         private Color _originalColor;
         private float _flashTimer = 0f;
-        private Color _flashColor;
         private bool _isFlashing = false;
         private bool _visualDebugEnabled = true;
+
+        public event Action<AgentTelemetryEvent> TelemetryEventRecorded;
 
         #region Unity Lifecycle
 
@@ -79,7 +93,9 @@ namespace RLMovie.Common
                 {
                     _isFlashing = false;
                     if (_agentRenderer != null)
+                    {
                         _agentRenderer.material.color = _originalColor;
+                    }
                 }
             }
         }
@@ -98,6 +114,9 @@ namespace RLMovie.Common
         {
             totalEpisodes++;
             episodeReward = 0f;
+            _episodeStartTimeSeconds = Time.time;
+            _lastTerminalReason = "running";
+            _lastTerminalMessage = "Episode in progress";
 
             if (autoResetPosition)
             {
@@ -113,6 +132,11 @@ namespace RLMovie.Common
             }
 
             OnEpisodeReset();
+            RecordTelemetry(
+                AgentTelemetryEventType.EpisodeBegin,
+                "episode_begin",
+                "Episode Start",
+                0f);
         }
 
         public override void CollectObservations(VectorSensor sensor)
@@ -132,93 +156,135 @@ namespace RLMovie.Common
 
         #endregion
 
-        #region Abstract Methods (implement in child classes)
+        #region Abstract Methods
 
-        /// <summary>エージェント初期化時の処理</summary>
         protected abstract void OnAgentInitialize();
 
-        /// <summary>エピソードリセット時の処理</summary>
         protected abstract void OnEpisodeReset();
 
-        /// <summary>観測データの収集</summary>
         protected abstract void CollectAgentObservations(VectorSensor sensor);
 
-        /// <summary>アクション実行</summary>
         protected abstract void ExecuteActions(ActionBuffers actions);
 
-        /// <summary>Heuristic（手動操作）モードの入力</summary>
         protected abstract void ProvideHeuristicInput(in ActionBuffers actionsOut);
 
         #endregion
 
         #region Helper Methods
 
-        /// <summary>成功報酬を与えてエピソード終了</summary>
-        protected void Success(float reward = 1.0f)
+        protected void Success(float reward = 1.0f, string reason = "success", string message = "Success")
         {
             successCount++;
             AddReward(reward);
             episodeReward += reward;
             lastCompletedEpisodeReward = episodeReward;
+            lastCompletedEpisodeDuration = CurrentEpisodeDurationSeconds;
+            _lastTerminalReason = SanitizeReason(reason, "success");
+            _lastTerminalMessage = string.IsNullOrWhiteSpace(message) ? "Success" : message;
+            RecordTelemetry(AgentTelemetryEventType.Success, _lastTerminalReason, _lastTerminalMessage, reward);
 
             FlashColor(Color.green, 0.3f);
 
             if (showDebugInfo)
-                Debug.Log($"[{name}] ✅ SUCCESS! Episode {totalEpisodes} | Reward: {episodeReward:F2} | Rate: {SuccessRate:P1}");
+            {
+                Debug.Log(
+                    $"[{name}] SUCCESS Episode {totalEpisodes} | Reward: {episodeReward:F2} | Duration: {lastCompletedEpisodeDuration:F2}s | Reason: {_lastTerminalReason} | Rate: {SuccessRate:P1}");
+            }
 
             EndEpisode();
         }
 
-        /// <summary>失敗ペナルティを与えてエピソード終了</summary>
-        protected void Fail(float penalty = -1.0f)
+        protected void Fail(float penalty = -1.0f, string reason = "failure", string message = "Failure")
         {
             failCount++;
             AddReward(penalty);
             episodeReward += penalty;
             lastCompletedEpisodeReward = episodeReward;
+            lastCompletedEpisodeDuration = CurrentEpisodeDurationSeconds;
+            _lastTerminalReason = SanitizeReason(reason, "failure");
+            _lastTerminalMessage = string.IsNullOrWhiteSpace(message) ? "Failure" : message;
+            RecordTelemetry(AgentTelemetryEventType.Failure, _lastTerminalReason, _lastTerminalMessage, penalty);
 
             FlashColor(Color.red, 0.3f);
 
             if (showDebugInfo)
-                Debug.Log($"[{name}] ❌ FAIL! Episode {totalEpisodes} | Reward: {episodeReward:F2} | Rate: {SuccessRate:P1}");
+            {
+                Debug.Log(
+                    $"[{name}] FAIL Episode {totalEpisodes} | Reward: {episodeReward:F2} | Duration: {lastCompletedEpisodeDuration:F2}s | Reason: {_lastTerminalReason} | Rate: {SuccessRate:P1}");
+            }
 
             EndEpisode();
         }
 
-        /// <summary>報酬を追加（追跡付き）</summary>
         protected void AddTrackedReward(float reward)
         {
             AddReward(reward);
             episodeReward += reward;
         }
 
-        /// <summary>エージェントの色を一瞬変える（ビジュアルフィードバック）</summary>
+        protected void AddTrackedReward(float reward, string reason, string message, bool emitTelemetry = true)
+        {
+            AddReward(reward);
+            episodeReward += reward;
+
+            if (emitTelemetry)
+            {
+                RecordTelemetry(
+                    AgentTelemetryEventType.Reward,
+                    SanitizeReason(reason, reward >= 0f ? "reward_gain" : "reward_loss"),
+                    string.IsNullOrWhiteSpace(message) ? BuildDefaultRewardMessage(reward) : message,
+                    reward);
+            }
+        }
+
+        protected void RecordMarkerEvent(
+            string reason,
+            string message,
+            float value = 0f,
+            AgentTelemetryEventType eventType = AgentTelemetryEventType.Marker)
+        {
+            RecordTelemetry(eventType, SanitizeReason(reason, "marker"), message, value);
+        }
+
         protected void FlashColor(Color color, float duration = 0.3f)
         {
-            if (!_visualDebugEnabled || _agentRenderer == null) return;
+            if (!_visualDebugEnabled || _agentRenderer == null)
+            {
+                return;
+            }
+
             _agentRenderer.material.color = color;
-            _flashColor = color;
             _flashTimer = duration;
             _isFlashing = true;
         }
 
-        /// <summary>成功率</summary>
         public float SuccessRate => CompletedEpisodes > 0 ? (float)successCount / CompletedEpisodes : 0f;
 
-        /// <summary>現在のエピソード報酬</summary>
         public float CurrentEpisodeReward => episodeReward;
 
-        /// <summary>直近で完了したエピソード報酬</summary>
         public float LastCompletedEpisodeReward => lastCompletedEpisodeReward;
 
-        /// <summary>完了済みエピソード数</summary>
+        public float LastCompletedEpisodeDurationSeconds => lastCompletedEpisodeDuration;
+
         public new int CompletedEpisodes => successCount + failCount;
 
-        /// <summary>総エピソード数（完了済み）</summary>
-        public int TotalEpisodes => CompletedEpisodes;
+        public int TotalEpisodes => totalEpisodes;
 
-        /// <summary>現在進行中のエピソード番号</summary>
         public int CurrentEpisodeNumber => totalEpisodes;
+
+        public float CurrentEpisodeDurationSeconds => Mathf.Max(0f, Time.time - _episodeStartTimeSeconds);
+
+        public string LastTerminalReason => _lastTerminalReason;
+
+        public string LastTerminalMessage => _lastTerminalMessage;
+
+        public IReadOnlyList<AgentTelemetryEvent> RecentTelemetry => _recentTelemetry;
+
+        public bool TryGetLatestTelemetry(out AgentTelemetryEvent telemetry)
+        {
+            telemetry = _latestTelemetry;
+            return _hasLatestTelemetry;
+        }
 
         #endregion
 
@@ -227,7 +293,10 @@ namespace RLMovie.Common
 #if !UNITY_SERVER
         private void OnGUI()
         {
-            if (!showDebugInfo || !_visualDebugEnabled) return;
+            if (!showDebugInfo || !_visualDebugEnabled)
+            {
+                return;
+            }
 
             GUIStyle style = new GUIStyle(GUI.skin.label)
             {
@@ -241,16 +310,54 @@ namespace RLMovie.Common
 
             if (screenPos.z > 0)
             {
-                float x = screenPos.x - 80;
-                float y = Screen.height - screenPos.y - 40;
+                float x = screenPos.x - 90f;
+                float y = Screen.height - screenPos.y - 44f;
 
-                GUI.Label(new Rect(x, y, 200, 20),
-                    $"Ep: {CurrentEpisodeNumber} | R: {episodeReward:F2}", style);
-                GUI.Label(new Rect(x, y + 20, 200, 20),
-                    $"Success: {SuccessRate:P1}", style);
+                GUI.Label(new Rect(x, y, 220f, 20f), $"Ep: {CurrentEpisodeNumber} | R: {episodeReward:F2}", style);
+                GUI.Label(new Rect(x, y + 20f, 220f, 20f), $"Success: {SuccessRate:P1}", style);
             }
         }
 #endif
+
+        private void RecordTelemetry(
+            AgentTelemetryEventType eventType,
+            string reason,
+            string message,
+            float value)
+        {
+            var telemetry = new AgentTelemetryEvent(
+                _nextTelemetrySequenceId++,
+                totalEpisodes,
+                Time.time,
+                eventType,
+                reason,
+                message,
+                value,
+                transform.position + Vector3.up * 1.35f);
+
+            int maxEntries = Mathf.Max(4, maxTelemetryEntries);
+            if (_recentTelemetry.Count >= maxEntries)
+            {
+                _recentTelemetry.RemoveAt(0);
+            }
+
+            _recentTelemetry.Add(telemetry);
+            _latestTelemetry = telemetry;
+            _hasLatestTelemetry = true;
+            TelemetryEventRecorded?.Invoke(telemetry);
+        }
+
+        private static string SanitizeReason(string reason, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(reason) ? fallback : reason.Trim();
+        }
+
+        private static string BuildDefaultRewardMessage(float reward)
+        {
+            return reward >= 0f
+                ? $"Reward +{reward:F2}"
+                : $"Penalty {reward:F2}";
+        }
 
         private static bool IsHeadlessRuntime()
         {

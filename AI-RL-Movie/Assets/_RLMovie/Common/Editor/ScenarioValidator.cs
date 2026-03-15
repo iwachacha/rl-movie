@@ -48,7 +48,7 @@ namespace RLMovie.Editor
                 ? $"✅ Validation passed\n\nWarnings: {report.Warnings.Count}\nSee Console for details."
                 : $"❌ Validation failed\n\nErrors: {report.Errors.Count}\nWarnings: {report.Warnings.Count}\nSee Console for details.";
 
-            EditorUtility.DisplayDialog(title, message, "OK");
+            EditorStatus.ShowNonBlockingMessage(title, message, isError: !report.IsValid);
         }
 
         public static ScenarioValidationReport ValidateCurrentScene(bool logToConsole)
@@ -316,13 +316,27 @@ namespace RLMovie.Editor
                 var serializedObject = new SerializedObject(helper);
                 var cameraSwitchingProperty = serializedObject.FindProperty("enableCameraSwitching");
                 var cameraPositionsProperty = serializedObject.FindProperty("cameraPositions");
+                var followCameraIndexProperty = serializedObject.FindProperty("followCameraIndex");
+                var followTargetProperty = serializedObject.FindProperty("followTarget");
 
                 bool enableCameraSwitching = cameraSwitchingProperty != null && cameraSwitchingProperty.boolValue;
                 int cameraCount = cameraPositionsProperty != null ? cameraPositionsProperty.arraySize : 0;
+                int followCameraIndex = followCameraIndexProperty != null ? followCameraIndexProperty.intValue : -1;
+                var followTarget = followTargetProperty?.objectReferenceValue as Transform;
 
                 if (enableCameraSwitching && cameraCount < 2)
                 {
                     report.AddWarning($"{helper.gameObject.name}: enableCameraSwitching が有効ですが cameraPositions が 2 個未満です。");
+                }
+
+                if (followCameraIndex >= cameraCount && cameraCount > 0)
+                {
+                    report.AddWarning($"{helper.gameObject.name}: followCameraIndex が cameraPositions の範囲外です。現在値: {followCameraIndex}, camera count: {cameraCount}");
+                }
+
+                if (followCameraIndex >= 0 && followTarget == null)
+                {
+                    report.AddWarning($"{helper.gameObject.name}: followCameraIndex が有効ですが followTarget が未設定です。");
                 }
             }
         }
@@ -351,6 +365,8 @@ namespace RLMovie.Editor
             var environmentManager = serializedObject.FindProperty("environmentManager")?.objectReferenceValue as RLMovie.Common.EnvironmentManager;
             var trainingVisualizer = serializedObject.FindProperty("trainingVisualizer")?.objectReferenceValue as RLMovie.Common.TrainingVisualizer;
             var recordingHelper = serializedObject.FindProperty("recordingHelper")?.objectReferenceValue as RLMovie.Common.RecordingHelper;
+            var broadcastOverlay = serializedObject.FindProperty("scenarioBroadcastOverlay")?.objectReferenceValue as RLMovie.Common.ScenarioBroadcastOverlay;
+            var highlightTracker = serializedObject.FindProperty("scenarioHighlightTracker")?.objectReferenceValue as RLMovie.Common.ScenarioHighlightTracker;
             var defaultCameraView = serializedObject.FindProperty("defaultCameraView")?.objectReferenceValue as Transform;
             var recordingCameraViews = serializedObject.FindProperty("recordingCameraViews");
 
@@ -467,6 +483,52 @@ namespace RLMovie.Editor
                     {
                         report.AddWarning($"ScenarioGoldenSpine: recordingCameraViews[{i}] と RecordingHelper.cameraPositions[{i}] が一致しません。");
                     }
+                }
+            }
+
+            if (broadcastOverlay == null)
+            {
+                report.AddWarning("ScenarioGoldenSpine: scenarioBroadcastOverlay が未設定です。動画向けHUDの配置を推奨します。");
+            }
+            else
+            {
+                var overlaySo = new SerializedObject(broadcastOverlay);
+                var overlayTargetAgent = overlaySo.FindProperty("targetAgent")?.objectReferenceValue as RLMovie.Common.BaseRLAgent;
+                var overlayScenarioLabel = overlaySo.FindProperty("scenarioLabel")?.stringValue;
+                var overlayGoalDescription = overlaySo.FindProperty("goalDescription")?.stringValue;
+                if (primaryAgent != null && overlayTargetAgent != primaryAgent)
+                {
+                    report.AddWarning("ScenarioGoldenSpine: scenarioBroadcastOverlay.targetAgent が primaryAgent と一致しません。");
+                }
+
+                if (string.IsNullOrWhiteSpace(overlayScenarioLabel) || string.Equals(overlayScenarioLabel, "Scenario", StringComparison.Ordinal))
+                {
+                    report.AddWarning("ScenarioGoldenSpine: scenarioBroadcastOverlay.scenarioLabel が汎用値のままです。動画向けの見出しを設定してください。");
+                }
+
+                if (string.IsNullOrWhiteSpace(overlayGoalDescription) || string.Equals(overlayGoalDescription, "Describe the scenario goal for viewers.", StringComparison.Ordinal))
+                {
+                    report.AddWarning("ScenarioGoldenSpine: scenarioBroadcastOverlay.goalDescription が未調整です。視聴者向けの目的説明を入れてください。");
+                }
+            }
+
+            if (highlightTracker == null)
+            {
+                report.AddWarning("ScenarioGoldenSpine: scenarioHighlightTracker が未設定です。疎なハイライト抽出の配置を推奨します。");
+            }
+            else
+            {
+                var trackerSo = new SerializedObject(highlightTracker);
+                var trackerTargetAgent = trackerSo.FindProperty("targetAgent")?.objectReferenceValue as RLMovie.Common.BaseRLAgent;
+                var trackerScenarioLabel = trackerSo.FindProperty("scenarioLabel")?.stringValue;
+                if (primaryAgent != null && trackerTargetAgent != primaryAgent)
+                {
+                    report.AddWarning("ScenarioGoldenSpine: scenarioHighlightTracker.targetAgent が primaryAgent と一致しません。");
+                }
+
+                if (string.IsNullOrWhiteSpace(trackerScenarioLabel) || string.Equals(trackerScenarioLabel, "Scenario", StringComparison.Ordinal))
+                {
+                    report.AddWarning("ScenarioGoldenSpine: scenarioHighlightTracker.scenarioLabel が汎用値のままです。書き出しラベルを設定してください。");
                 }
             }
         }
@@ -632,6 +694,54 @@ namespace RLMovie.Editor
         public void AddWarning(string message)
         {
             Warnings.Add(message);
+        }
+    }
+
+    internal static class EditorStatus
+    {
+        internal static void ShowNonBlockingMessage(string title, string message, bool isError)
+        {
+            if (isError)
+            {
+                Debug.LogError($"[{title}] {message}");
+            }
+            else
+            {
+                Debug.Log($"[{title}] {message}");
+            }
+
+            string summary = GetFirstLine(message);
+            EditorWindow window = SceneView.lastActiveSceneView;
+            if (window == null)
+            {
+                window = EditorWindow.focusedWindow;
+            }
+
+            if (window == null)
+            {
+                window = EditorWindow.mouseOverWindow;
+            }
+
+            if (window != null)
+            {
+                window.ShowNotification(new GUIContent($"{title}: {summary}"));
+            }
+        }
+
+        private static string GetFirstLine(string message)
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return string.Empty;
+            }
+
+            int breakIndex = message.IndexOfAny(new[] { '\r', '\n' });
+            if (breakIndex < 0)
+            {
+                return message;
+            }
+
+            return message.Substring(0, breakIndex);
         }
     }
 }
