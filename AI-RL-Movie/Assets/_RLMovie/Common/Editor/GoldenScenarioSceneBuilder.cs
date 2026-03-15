@@ -142,6 +142,27 @@ namespace RLMovie.Editor
             AssignObjectReference(goldenSpine, "defaultCameraView", defaultCameraView);
             AssignObjectReference(goldenSpine, "recordingCameraViews", new[] { recordLeft, recordRight });
 
+            // Add AI Warehouse-style UI Overlay
+            GameObject uiPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/_RLMovie/Common/Prefabs/ScenarioInfoOverlay.prefab");
+            if (uiPrefab != null)
+            {
+                GameObject uiInstance = (GameObject)PrefabUtility.InstantiatePrefab(uiPrefab, environmentRoot.transform);
+                if (uiInstance != null)
+                {
+                    uiInstance.name = "ScenarioInfoOverlay";
+                    
+                    var uiController = uiInstance.GetComponent<RLMovie.UI.ScenarioUIController>();
+                    if (uiController != null)
+                    {
+                        AssignObjectReference(uiController, "targetAgent", agent);
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[GoldenScenarioSceneBuilder] ScenarioInfoOverlay.prefab not found. Run 'RLMovie > Build Scenario UI Prefab' to generate it.");
+            }
+
             return new GoldenScenarioSceneContext(
                 scene,
                 goldenSpine,
