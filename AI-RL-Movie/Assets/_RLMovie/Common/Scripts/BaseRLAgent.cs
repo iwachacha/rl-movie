@@ -25,6 +25,19 @@ namespace RLMovie.Common
         [Tooltip("エージェントの初期回転")]
         [SerializeField] protected Quaternion startRotation = Quaternion.identity;
 
+        [Header("=== Diagnostic Settings ===")]
+        [Tooltip("報酬テキストのプレハブ")]
+        [SerializeField] protected FloatingRewardText rewardTextPrefab;
+
+        [Tooltip("報酬テキストを合算して表示する間隔（秒）。0なら即時表示")]
+        [SerializeField] protected float rewardDisplayInterval = 0.2f;
+
+        [Tooltip("ヒートマップの記録を有効にするか")]
+        [SerializeField] protected bool enableHeatmap = true;
+
+        [Tooltip("一定以上の大きな報酬を即時表示する閾値")]
+        [SerializeField] protected float immediateRewardThreshold = 0.1f;
+
         // --- エピソード統計 ---
         protected int totalEpisodes = 0;
         protected int successCount = 0;
@@ -39,6 +52,10 @@ namespace RLMovie.Common
         private Color _flashColor;
         private bool _isFlashing = false;
         private bool _visualDebugEnabled = true;
+
+        // --- 報酬テキスト合算用 ---
+        private float _accumulatedReward = 0f;
+        private float _rewardSpawnTimer = 0f;
 
         #region Unity Lifecycle
 
@@ -82,6 +99,16 @@ namespace RLMovie.Common
                         _agentRenderer.material.color = _originalColor;
                 }
             }
+
+            // 報酬テキストのタイマー処理
+            if (rewardDisplayInterval > 0)
+            {
+                _rewardSpawnTimer -= Time.deltaTime;
+                if (_rewardSpawnTimer <= 0f)
+                {
+                    TrySpawnAccumulatedRewardText();
+                }
+            }
         }
 
         #endregion
@@ -91,6 +118,13 @@ namespace RLMovie.Common
         public override void Initialize()
         {
             base.Initialize();
+            
+            if (enableHeatmap)
+            {
+                var heatmap = FindFirstObjectByType<HeatmapManager>();
+                if (heatmap != null) heatmap.RegisterAgent(this);
+            }
+
             OnAgentInitialize();
         }
 
@@ -166,6 +200,8 @@ namespace RLMovie.Common
             if (showDebugInfo)
                 Debug.Log($"[{name}] ✅ SUCCESS! Episode {totalEpisodes} | Reward: {episodeReward:F2} | Rate: {SuccessRate:P1}");
 
+            // 成功報酬は即時表示
+            SpawnRewardText(reward);
             EndEpisode();
         }
 
@@ -182,6 +218,8 @@ namespace RLMovie.Common
             if (showDebugInfo)
                 Debug.Log($"[{name}] ❌ FAIL! Episode {totalEpisodes} | Reward: {episodeReward:F2} | Rate: {SuccessRate:P1}");
 
+            // 失敗ペナルティは即時表示
+            SpawnRewardText(penalty);
             EndEpisode();
         }
 
@@ -190,6 +228,34 @@ namespace RLMovie.Common
         {
             AddReward(reward);
             episodeReward += reward;
+
+            if (rewardDisplayInterval <= 0 || Mathf.Abs(reward) >= immediateRewardThreshold)
+            {
+                SpawnRewardText(reward);
+            }
+            else
+            {
+                _accumulatedReward += reward;
+                if (_rewardSpawnTimer <= 0) _rewardSpawnTimer = rewardDisplayInterval;
+            }
+        }
+
+        private void TrySpawnAccumulatedRewardText()
+        {
+            if (Mathf.Abs(_accumulatedReward) > 0.0001f) // 微小すぎる値は無視
+            {
+                SpawnRewardText(_accumulatedReward);
+                _accumulatedReward = 0f;
+            }
+        }
+
+        private void SpawnRewardText(float amount)
+        {
+            if (rewardTextPrefab == null || !_visualDebugEnabled) return;
+
+            var spawnPos = transform.position + Vector3.up * 2f;
+            var textObj = Instantiate(rewardTextPrefab, spawnPos, Quaternion.identity);
+            textObj.Setup(amount);
         }
 
         /// <summary>エージェントの色を一瞬変える（ビジュアルフィードバック）</summary>

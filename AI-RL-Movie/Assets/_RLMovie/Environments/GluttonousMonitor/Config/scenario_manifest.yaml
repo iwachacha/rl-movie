@@ -1,0 +1,50 @@
+# 宇宙の暴食モニター (GluttonousMonitor) シナリオ契約
+# 巨大なモニターにペンギンがプロップを捧げるシュールなシナリオです。
+
+scenario_name: GluttonousMonitor
+scene_name: GluttonousMonitor
+agent_class: GluttonousMonitorAgent
+behavior_name: GluttonousMonitorAgent
+training_config: "gluttonous_monitor_config"
+learning_goal: "エージェント（ペンギン）が宇宙ステーション内のプロップを巨大モニターの口まで運んで食べさせる"
+success_conditions:
+  - "エージェントがプロップをモニターの口（eatDistance内）に運ぶ"
+failure_conditions:
+  - "エージェントがステージから落下する"
+  - "タイムアウト（2000ステップ以上経過）"
+observation_contract:
+  vector_size: 10
+  items:
+    - "agent localPosition (3)"
+    - "agent localForward (3)"
+    - "relative direction to monitor mouth (3)"
+    - "distance to monitor mouth (1)"
+action_contract:
+  type: continuous
+  size: 2
+  mapping:
+    - "index 0: move (forward/backward)"
+    - "index 1: turn (left/right)"
+reward_rules:
+  terminal:
+    - "Success (item eaten): +1.0"
+    - "Fail (fall/timeout): -1.0"
+    - "Fail (wrong item / explosion): -2.0"
+  dense:
+    - "itemProximityReward: プロップがモニターに近づくほどプラス"
+  penalties:
+    - "step penalty: -0.0001"
+    - "monitor anger (wrong item proximity): -0.01"
+randomization_knobs:
+  - name: "propSpawnRandomization"
+    purpose: "プロップの初期位置をランダム化する"
+    default: "true"
+visual_theme:
+  style: "Cosmic Retro Station アセットを使用したレトロSFな宇宙空間。巨大化させたモニターが中央に鎮座。"
+  readability: "エージェント（ペンギン）とプロップ、モニターの口を視覚的に強調。"
+camera_plan:
+  default_view: "モニターとエージェントの全体を見渡す引きの絵"
+  recording_cuts:
+    - "AgentFollow"
+    - "MonitorMouthFocus"
+spec_version: 1
