@@ -8,6 +8,7 @@ Use:
 
 What is standardized:
 - `scenario_manifest.yaml` contract shape
+- `training_config` in the manifest selects the active training YAML for validation, build, and Colab
 - `EnvironmentRoot`, `ScenarioGoldenSpine`, `EnvironmentManager`
 - `TrainingVisualizer`, `RecordingHelper`, and camera anchors
 - starter PPO config and naming alignment

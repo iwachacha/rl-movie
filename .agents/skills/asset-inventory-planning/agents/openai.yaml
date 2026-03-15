@@ -1,0 +1,4 @@
+interface:
+  display_name: "Asset Inventory Planning"
+  short_description: "Catalog and plan with existing imported assets."
+  default_prompt: "Review the assets already imported in this repo, summarize what they can do, and propose practical combinations for the current scenario idea."

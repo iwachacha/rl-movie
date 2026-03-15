@@ -11,7 +11,8 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 
 ## Local Skills
 - `agents-maintenance`: edit `AGENTS.md`, `.agents/`, skill layout, or instruction architecture.
-- `scenario-ideation`: invent video-worthy RL scenario themes and shortlist ideas that stay feasible to implement in this repo.
+- `asset-inventory-planning`: summarize which third-party assets are already imported, what they can do, which combinations are promising, and whether a scenario can be built from current inventory before researching more.
+- `scenario-ideation`: invent video-worthy RL scenario themes and shortlist ideas that stay feasible to implement in this repo. Pair with `unity-free-asset-research` when free Asset Store visuals should influence the idea or be captured in the final hand-off memo.
 - `scenario-spec`: define or revise scenario contracts before implementation.
 - `scenario-build`: create or change scene/C#/YAML/manifest under `_RLMovie`.
 - `scenario-train`: prepare builds, Colab training, comparisons, model import, or train handoff.
@@ -22,5 +23,5 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 - `unity-mcp-safe-ops`: perform Unity scene or asset edits through MCP in small validated batches that preserve RL setup integrity.
 - `curriculum-randomization`: design or revise curriculum stages and domain randomization for learnability and generalization.
 - `run-ingest-archive`: organize returned training artifacts, adoption decisions, and run metadata by `run_id`.
-- `unity-free-asset-research`: research the best currently-free Unity Asset Store assets for a specific implementation idea, ranking by fit, reviews, popularity, compatibility, and update health.
+- `unity-free-asset-research`: research the best currently-free Unity Asset Store assets for a specific implementation idea, ranking by fit, reviews, popularity, compatibility, and update health. Pair with `scenario-ideation` when asset choices should shape concept selection or be written into `docs/ideas/`.
 - `asset-intake`: evaluate or integrate external assets or `ThirdParty` usage.

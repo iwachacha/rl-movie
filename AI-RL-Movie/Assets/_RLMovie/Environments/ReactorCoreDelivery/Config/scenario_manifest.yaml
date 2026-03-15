@@ -1,0 +1,109 @@
+scenario_name: ReactorCoreDelivery
+scene_name: ReactorCoreDelivery
+agent_class: ReactorCoreDeliveryAgent
+behavior_name: ReactorCoreDeliveryAgent
+training_config: reactor_core_delivery_config.yaml
+learning_goal: "Learn to approach a loose reactor core, then either roll it or grab and carry it through a single mandatory corridor of hazards: Pickup Bay -> Laser Gate -> Shock Gate -> full-width Blast Door -> short socket funnel. Success is only counted when the physical core seats stably inside ReactorSocket before meltdown."
+success_conditions:
+  - "The physical reactor core settles stably inside ReactorSocket long enough to seat."
+failure_conditions:
+  - "Sweeping Laser hits the agent."
+  - "EnvironmentManager fallThreshold is crossed by the agent."
+  - "The physical reactor core falls away or escapes corridor bounds before seating."
+  - "Meltdown countdown reaches zero before the physical core is seated, triggering a reactor explosion timeout."
+  - "Episode reaches MaxStep before the core is seated."
+observation_contract:
+  vector_size: 39
+  child_sensors:
+    - "CourierView grayscale camera sensor (64x36) mounted near head height and looking down the delivery spine."
+  items:
+    - "agent normalized local x/z (2)"
+    - "agent planar velocity x/z (2)"
+    - "normalized vector to the physical core x/z and normalized distance (3)"
+    - "normalized vector to ReactorSocket x/z (2)"
+    - "normalized vector from the physical core to ReactorSocket x/z and normalized distance (3)"
+    - "physical core planar velocity x/z (2)"
+    - "normalized vector to the current mandatory checkpoint x/z (2)"
+    - "laser center delta x/z, laser phase sin/cos, laser sweep amount normalized (5)"
+    - "shock floor center delta x/z, shock phase sin/cos, active flag (5)"
+    - "blast door center delta x/z, door phase sin/cos, open amount, passable flag (6)"
+    - "socket settle readiness normalized (1)"
+    - "core-docked flag after the settle window (1)"
+    - "meltdown countdown remaining normalized (1)"
+    - "agent shock recovery normalized (1)"
+    - "isHoldingCore flag (1)"
+    - "grab cooldown normalized (1)"
+    - "core gate progress normalized across laser, shock, and blast door (1)"
+action_contract:
+  type: hybrid
+  continuous_size: 2
+  discrete_branches:
+    - 3
+  mapping:
+    - "continuous index 0: strafe / horizontal movement on corridor plane"
+    - "continuous index 1: forward / backward movement on corridor plane"
+    - "discrete branch 0: 0 = no-op, 1 = grab, 2 = release"
+reward_rules:
+  terminal:
+    - "Success: +1.5 plus up to +0.75 speed bonus based on remaining meltdown time when the core is seated."
+    - "Laser hit or lost core fail: -1.0"
+    - "Meltdown timeout fail: -1.1 and the corridor detonates."
+  dense:
+    - "engage bonus: +0.20 the first time the agent cleanly reaches the loose core or begins escorting it"
+    - "approach shaping: +0.012 * delta while the task is still mainly about reaching the loose core"
+    - "core delivery shaping: +0.018 * delta from the core's own progress toward ReactorSocket once escort begins"
+    - "socket settle shaping: +0.05 * delta from settle readiness once the core is inside the socket funnel"
+    - "mandatory gate bonus: +0.08 each time the core crosses laser, shock, or blast-door progress thresholds in order"
+    - "socket settle bonus: +0.25 the first time the physical core seats inside ReactorSocket"
+  penalties:
+    - "step penalty: -0.00075"
+    - "backtracking penalty before contact: -0.008 * abs(delta) when the agent loses approach progress to the core"
+    - "backtracking penalty after contact: -0.01 * abs(delta) when the core loses goal progress"
+    - "shock hit: -0.10 and knockback, with forced release if the core is being carried"
+    - "core laser contact: -0.12 and a release / knockback response on the loose or carried core"
+    - "core shock pulse: -0.08 and a release / impulse response on the loose or carried core"
+randomization_knobs:
+  - name: "randomization_strength"
+    purpose: "Controls start x/z jitter while keeping the pickup and first shove readable."
+    default: "0.45"
+  - name: "phase_jitter"
+    purpose: "Offsets laser, shock, and blast-door cycles so timing is not memorized."
+    default: "0.30"
+  - name: "laser_speed_scale"
+    purpose: "Scales Sweeping Laser cycle speed."
+    default: "1.0"
+  - name: "shock_active_scale"
+    purpose: "Scales the shock floor active duration so early lessons can stay readable."
+    default: "1.0"
+  - name: "door_open_scale"
+    purpose: "Scales Blast Door open duration."
+    default: "1.0"
+  - name: "delivery_deadline_scale"
+    purpose: "Scales the meltdown countdown so early lessons have more slack and later lessons demand faster delivery."
+    default: "1.0"
+difficulty_stages:
+  - name: PickupAndGrab
+    intent: "Teach the agent to approach the loose core cleanly, discover both rolling and explicit grab / release handling, and leave the pickup bay without losing the object."
+  - name: MandatoryGates
+    intent: "Bring the laser, shock floor, and blast door close to their real cadence so the agent learns to move the core through all three mandatory gates in order."
+  - name: DeliveryPressure
+    intent: "Require reliable socket seating under tighter timing, stronger hazard cadence, and recording-ready corridor readability."
+visual_theme:
+  style: "Industrial sci-fi reactor transfer corridor with a glowing loose core, one clean transport spine, readable hazard rooms, a full-width blast door, a short socket funnel, compact warning UI, and a bright meltdown payoff if delivery fails."
+  readability: "The courier, core, gate states, and final socket stay readable from an interior high oblique default view plus two tuned follow cuts, while the normal HUD stays compact and only escalates to siren treatment in the critical phase."
+camera_plan:
+  default_view: "DefaultView sits inside the corridor on a high oblique so the pickup bay, hazards, and socket funnel read as one continuous route."
+  recording_cuts:
+    - "RecordAgentRearFollow: trail the courier from behind so the core and upcoming gate stay in frame during transport."
+    - "RecordAgentFrontFollow: face back toward the courier for recoveries, shock releases, and the final socket approach."
+    - "If the countdown expires, hold the explosion beat long enough to read the launch and then cut to black before the next trial appears."
+acceptance_criteria:
+  - "Heuristic play can finish once by rolling the core only and once by using grab / release carrying."
+  - "The physical core cannot reach ReactorSocket without crossing the laser gate, shock gate, and blast door in order."
+  - "Shock can force release, laser contact with the core matters, and the blast door has no practical side bypass."
+  - "The scene keeps a compact countdown in normal play and only escalates to a large alert treatment in the critical or meltdown phase."
+  - "Scenario validator passes with GoldenSpine, TrainingVisualizer, and RecordingHelper references intact."
+  - "Build for Colab includes the updated manifest and reactor_core_delivery_config.yaml."
+  - "Inference and recording views keep the courier and core readable with the two follow cuts and no debug UI."
+baseline_run: ""
+spec_version: 11

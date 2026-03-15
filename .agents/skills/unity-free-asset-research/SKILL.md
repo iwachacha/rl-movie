@@ -15,6 +15,8 @@ Use live web research, keep "free only" as a hard rule, and rank candidates by i
 1. Translate the request into asset-search criteria.
 Ask only for missing constraints that materially change the answer: asset type, style, platform, render pipeline, Unity version, animation needs, poly budget, and whether the asset is visual-only or affects gameplay/tooling.
 If the user gives only a rough idea, infer a sensible first-pass search scope and state the assumption after researching.
+If the real question is whether the current repo inventory is already sufficient, use `asset-inventory-planning` first instead of jumping straight to outside research.
+If the request is part of scenario ideation, anchor the search to the current concept candidates and optimize for assets that make the chosen idea look richer without making implementation much harder.
 
 2. Research the current Unity Asset Store before recommending anything.
 Browse live pages on `assetstore.unity.com`; do not rely on memory for price, ratings, review count, compatibility, or update status.
@@ -34,6 +36,7 @@ Prioritize fit to the requested idea over raw popularity.
 Usually return 3 primary picks and 1-3 backups.
 Explain why the top pick wins for this exact use case, not just why it is popular overall.
 If nothing is a strong fit, say that plainly and offer the closest free compromises.
+If the scenario concept becomes locked during the same turn, write the chosen asset package plan into the same `docs/ideas/` concept memo instead of leaving the asset decision only in chat.
 
 ## Guardrails
 
@@ -50,6 +53,7 @@ If nothing is a strong fit, say that plainly and offer the closest free compromi
 - Follow with a compact comparison table or tight bullet list for the shortlist.
 - For each candidate, include why it fits, what evidence supports it, and the main caveat.
 - End with a practical next step.
+- If paired with `scenario-ideation` and the concept is chosen, ensure the final hand-off memo in `docs/ideas/` includes `Required assets`, `What each asset is used for`, `Recommended import order`, and `Compatibility notes`.
 - If the user decides to import or evaluate installation risk inside this repo, load `asset-intake` next.
 
 ## Secondary Sources

@@ -30,6 +30,7 @@ namespace RLMovie.Common
         protected int successCount = 0;
         protected int failCount = 0;
         protected float episodeReward = 0f;
+        protected float lastCompletedEpisodeReward = 0f;
 
         // --- ビジュアルフィードバック ---
         private Renderer _agentRenderer;
@@ -158,6 +159,7 @@ namespace RLMovie.Common
             successCount++;
             AddReward(reward);
             episodeReward += reward;
+            lastCompletedEpisodeReward = episodeReward;
 
             FlashColor(Color.green, 0.3f);
 
@@ -173,6 +175,7 @@ namespace RLMovie.Common
             failCount++;
             AddReward(penalty);
             episodeReward += penalty;
+            lastCompletedEpisodeReward = episodeReward;
 
             FlashColor(Color.red, 0.3f);
 
@@ -200,13 +203,22 @@ namespace RLMovie.Common
         }
 
         /// <summary>成功率</summary>
-        public float SuccessRate => totalEpisodes > 0 ? (float)successCount / totalEpisodes : 0f;
+        public float SuccessRate => CompletedEpisodes > 0 ? (float)successCount / CompletedEpisodes : 0f;
 
         /// <summary>現在のエピソード報酬</summary>
         public float CurrentEpisodeReward => episodeReward;
 
-        /// <summary>総エピソード数</summary>
-        public int TotalEpisodes => totalEpisodes;
+        /// <summary>直近で完了したエピソード報酬</summary>
+        public float LastCompletedEpisodeReward => lastCompletedEpisodeReward;
+
+        /// <summary>完了済みエピソード数</summary>
+        public new int CompletedEpisodes => successCount + failCount;
+
+        /// <summary>総エピソード数（完了済み）</summary>
+        public int TotalEpisodes => CompletedEpisodes;
+
+        /// <summary>現在進行中のエピソード番号</summary>
+        public int CurrentEpisodeNumber => totalEpisodes;
 
         #endregion
 
@@ -233,7 +245,7 @@ namespace RLMovie.Common
                 float y = Screen.height - screenPos.y - 40;
 
                 GUI.Label(new Rect(x, y, 200, 20),
-                    $"Ep: {totalEpisodes} | R: {episodeReward:F2}", style);
+                    $"Ep: {CurrentEpisodeNumber} | R: {episodeReward:F2}", style);
                 GUI.Label(new Rect(x, y + 20, 200, 20),
                     $"Success: {SuccessRate:P1}", style);
             }

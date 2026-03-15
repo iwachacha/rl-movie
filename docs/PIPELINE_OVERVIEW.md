@@ -125,10 +125,10 @@ Google Drive/RL-Movie/
 1. Google Drive の `RL-Movie/Models/` から `.onnx` ファイルをダウンロード
 2. Unity メニュー **`RLMovie > Import Trained Model`** をクリック
    - StreamingAssets にコピー
+   - manifest の `behavior_name` と一致する agent に model を自動割当
    - Behavior Type が自動で `Inference Only` に変更
-3. Inspector の `Behavior Parameters > Model` にファイルをセット
-4. Play して動作確認
-5. Unity Recorder で録画:
+3. シーンを保存して Play で動作確認
+4. Unity Recorder で録画:
    - `Window > General > Recorder > Recorder Window`
    - 録画設定は `_RLMovie/Recording/RecorderSettings/` に保存
 

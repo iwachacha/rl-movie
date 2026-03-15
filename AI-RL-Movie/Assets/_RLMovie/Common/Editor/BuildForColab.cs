@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
+using UnityEditor.SceneManagement;
 using System;
 using System.IO;
 using System.IO.Compression;
@@ -16,7 +17,7 @@ namespace RLMovie.Editor
     /// 現在シーンでは以下を行う:
     /// 1. Validator を通す
     /// 2. Linux Standalone としてビルド
-    /// 3. Config 配下の YAML と manifest を同梱
+    /// 3. manifest が選んだ training YAML と manifest を同梱
     /// 4. ZIP にまとめてアップロード用フォルダへ出力
     /// </summary>
     public static class BuildForColab
@@ -95,6 +96,11 @@ namespace RLMovie.Editor
         [MenuItem("RLMovie/Build All Scenes for Colab")]
         public static void BuildAllScenes()
         {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+            {
+                return;
+            }
+
             var sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { "Assets/_RLMovie/Environments" });
             if (sceneGuids.Length == 0)
             {
@@ -102,21 +108,33 @@ namespace RLMovie.Editor
                 return;
             }
 
+            string originalScenePath = EditorSceneManager.GetActiveScene().path;
             int builtCount = 0;
             int skippedCount = 0;
 
-            foreach (var guid in sceneGuids)
+            try
             {
-                string scenePath = AssetDatabase.GUIDToAssetPath(guid);
-                string sceneName = Path.GetFileNameWithoutExtension(scenePath);
-                ColabBuildResult result = Build(sceneName, new[] { scenePath }, interactive: false);
-                if (result.Success)
+                foreach (var guid in sceneGuids)
                 {
-                    builtCount++;
+                    string scenePath = AssetDatabase.GUIDToAssetPath(guid);
+                    EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+
+                    ColabBuildResult result = BuildCurrentSceneInternal(interactive: false);
+                    if (result.Success)
+                    {
+                        builtCount++;
+                    }
+                    else
+                    {
+                        skippedCount++;
+                    }
                 }
-                else
+            }
+            finally
+            {
+                if (!string.IsNullOrEmpty(originalScenePath))
                 {
-                    skippedCount++;
+                    EditorSceneManager.OpenScene(originalScenePath, OpenSceneMode.Single);
                 }
             }
 
@@ -330,6 +348,31 @@ namespace RLMovie.Editor
                 return false;
             }
 
+            string trainingConfig = ReadTopLevelScalar(manifestPath, "training_config");
+            if (string.IsNullOrWhiteSpace(trainingConfig))
+            {
+                errorMessage = "manifest の `training_config` が空です。Build for Colab で使う学習 YAML をファイル名で指定してください。";
+                return false;
+            }
+
+            if (!string.Equals(Path.GetFileName(trainingConfig), trainingConfig, StringComparison.Ordinal))
+            {
+                errorMessage = "manifest の `training_config` は Config 直下のファイル名だけを指定してください。";
+                return false;
+            }
+
+            string selectedYamlPath = yamlFiles.FirstOrDefault(
+                path => string.Equals(Path.GetFileName(path), trainingConfig, StringComparison.OrdinalIgnoreCase));
+            if (selectedYamlPath == null)
+            {
+                errorMessage =
+                    $"manifest の `training_config` が Config 内の学習 YAML を指していません。現在値: {trainingConfig}\n"
+                    + $"Available: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}";
+                return false;
+            }
+
+            yamlFiles = new[] { selectedYamlPath };
+
             return true;
         }
 
@@ -362,7 +405,7 @@ namespace RLMovie.Editor
             string readmePath = Path.Combine(targetConfigDir, "README.txt");
             File.WriteAllText(
                 readmePath,
-                $"Scenario: {sceneName}{Environment.NewLine}Manifest: {Path.GetFileName(manifestPath)}{Environment.NewLine}Configs: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}{Environment.NewLine}Training requirements: training_requirements.txt{Environment.NewLine}");
+                $"Scenario: {sceneName}{Environment.NewLine}Manifest: {Path.GetFileName(manifestPath)}{Environment.NewLine}Training config: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}{Environment.NewLine}Training requirements: training_requirements.txt{Environment.NewLine}");
         }
 
         private static ColabBuildResult Fail(string message, bool interactive, string sceneName = null, string manifestPath = null, string[] yamlFiles = null)
@@ -552,6 +595,28 @@ namespace RLMovie.Editor
             using var reader = new StreamReader(stream);
             string contents = reader.ReadToEnd();
             return contents.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+        }
+
+        private static string ReadTopLevelScalar(string filePath, string key)
+        {
+            foreach (string line in File.ReadLines(filePath))
+            {
+                if (string.IsNullOrWhiteSpace(line) || char.IsWhiteSpace(line[0]))
+                {
+                    continue;
+                }
+
+                string trimmed = line.Trim();
+                if (!trimmed.StartsWith($"{key}:", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                string value = trimmed.Substring(key.Length + 1).Trim();
+                return value.Trim('"', '\'');
+            }
+
+            return string.Empty;
         }
 
     }

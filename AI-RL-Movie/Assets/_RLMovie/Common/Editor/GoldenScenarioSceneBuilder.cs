@@ -24,6 +24,22 @@ namespace RLMovie.Editor
             Action<GoldenScenarioSceneContext, TAgent> configureScenario = null)
             where TAgent : BaseRLAgent
         {
+            return CreateStarterScene(
+                scenePath,
+                behaviorName,
+                vectorObservationSize,
+                ActionSpec.MakeContinuous(Mathf.Max(1, continuousActionSize)),
+                configureScenario);
+        }
+
+        public static GoldenScenarioSceneContext CreateStarterScene<TAgent>(
+            string scenePath,
+            string behaviorName,
+            int vectorObservationSize,
+            ActionSpec actionSpec,
+            Action<GoldenScenarioSceneContext, TAgent> configureScenario = null)
+            where TAgent : BaseRLAgent
+        {
             if (string.IsNullOrWhiteSpace(scenePath))
             {
                 throw new ArgumentException("scenePath is required.", nameof(scenePath));
@@ -32,7 +48,7 @@ namespace RLMovie.Editor
             EnsureAssetFoldersForScene(scenePath);
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
-            var context = BuildSharedBackbone<TAgent>(scene, behaviorName, vectorObservationSize, continuousActionSize);
+            var context = BuildSharedBackbone<TAgent>(scene, behaviorName, vectorObservationSize, actionSpec);
 
             configureScenario?.Invoke(context, (TAgent)context.Agent);
 
@@ -47,7 +63,7 @@ namespace RLMovie.Editor
             Scene scene,
             string behaviorName,
             int vectorObservationSize,
-            int continuousActionSize)
+            ActionSpec actionSpec)
             where TAgent : BaseRLAgent
         {
             Camera mainCamera = Camera.main;
@@ -92,7 +108,7 @@ namespace RLMovie.Editor
             behaviorParameters.BehaviorName = behaviorName;
             behaviorParameters.BehaviorType = BehaviorType.Default;
             behaviorParameters.BrainParameters.VectorObservationSize = vectorObservationSize;
-            behaviorParameters.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(Mathf.Max(1, continuousActionSize));
+            behaviorParameters.BrainParameters.ActionSpec = actionSpec;
 
             GameObject cameraRig = new GameObject("CameraRig");
             cameraRig.transform.SetParent(environmentRoot.transform);

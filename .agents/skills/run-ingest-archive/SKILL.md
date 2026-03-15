@@ -27,6 +27,7 @@ This keeps later re-evaluation honest.
 4. Use the structure in `references/archive-layout.md`.
 Prefer a stable folder naming and summary shape so that future comparisons do not depend on memory or chat history.
 Keep the archive lightweight and easy to scan.
+In this repo, the canonical root is `RunArchive/`.
 
 5. Link the archive to the next decision.
 If a run is adopted, connect it to import and recording.

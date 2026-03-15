@@ -18,10 +18,17 @@ Use this file when organizing training outputs and evaluation records.
 
 ## Good Folder Shape
 
-Use a stable run-keyed structure such as:
+In this repo, store returned training artifacts under:
 
 ```text
-<scenario>/
+RunArchive/<scenario>/runs/<run_id>/
+```
+
+Use the following stable shape:
+
+```text
+RunArchive/
+  <scenario>/
   runs/
     <run_id>/
       run_summary.json
@@ -29,8 +36,6 @@ Use a stable run-keyed structure such as:
       eval-notes.md
       comparison.md
 ```
-
-If the repo already uses another structure, preserve it and apply the same metadata model.
 
 ## Adoption Status Values
 

@@ -13,7 +13,7 @@ Push for strong visual hooks and tonal variety, then compress ideas back into me
 ## Workflow
 
 1. Frame the brief quickly.
-Infer missing constraints unless they change the answer materially. Useful constraints are: desired tone, target video vibe, appetite for imported assets, complexity budget, whether training should be quick or can be a stretch, and whether the user wants many wild ideas or a tighter shortlist.
+Infer missing constraints unless they change the answer materially. Useful constraints are: desired tone, target video vibe, appetite for imported assets, complexity budget, whether training should be quick or can be a stretch, whether the user wants many wild ideas or a tighter shortlist, and whether free Asset Store polish is a hard requirement.
 
 2. Diverge before converging.
 Generate ideas across different emotional lanes instead of producing five near-duplicates. Read `references/idea-lenses.md` when you want fresh angles, stronger contrast, or a better balance of funny / impressive / strange / tense / creepy / satisfying.
@@ -42,6 +42,8 @@ For each candidate, usually include:
 6. Recommend a direction, not just a pile of options.
 If the user asks for ideas, end with one best-balance pick and one wild-card pick.
 Explain why the best-balance pick is the safest path to a compelling video.
+If the brief says to stay inside assets that are already imported in this repo, load `asset-inventory-planning` before locking the recommendation.
+If free Asset Store visuals are part of the brief, load `unity-free-asset-research` before locking the final recommendation so the idea and asset plan are chosen together.
 If the user chooses a concept, first create a short concept memo in `docs/ideas/` as a hand-off artifact, then load `scenario-spec` when the user wants to formalize it.
 
 7. Create a concept memo once the idea is locked.
@@ -55,6 +57,9 @@ Include:
 - `Emergence levers`: where surprising strategies may come from
 - `Visual hooks`: what will read well on screen
 - `Risks to avoid in V1`: what to keep out of the first implementation
+- `Asset plan`: the required free assets, why each one is in the package list, and any compatibility caveats when assets influenced the decision
+- `Asset usage`: what each chosen asset will be used for in the scene, by area or role
+- `Import priority`: the recommended download / import order when asset setup matters
 - `Good next step`: usually `scenario-spec`
 Keep the memo short, directional, and stable enough to revisit later.
 
@@ -88,4 +93,6 @@ Keep the memo short, directional, and stable enough to revisit later.
 
 - Use `references/idea-lenses.md` when ideas are too similar, too safe, or too difficult.
 - Once the user selects a concept, create a concept memo in `docs/ideas/` before moving to `scenario-spec`.
-- If the concept depends heavily on new visuals, free assets, or third-party content, consider `unity-free-asset-research` or `asset-intake` after the concept is chosen.
+- If the concept should be constrained by assets already present in the repo, use `asset-inventory-planning` before finalizing the memo so the memo reflects the current inventory rather than wishful imports.
+- If the concept depends heavily on free Asset Store visuals, use `unity-free-asset-research` before finalizing the memo so the memo includes the actual asset shortlist, intended usage, and compatibility notes.
+- If the concept depends heavily on third-party content beyond selection, consider `asset-intake` after the concept is chosen.
