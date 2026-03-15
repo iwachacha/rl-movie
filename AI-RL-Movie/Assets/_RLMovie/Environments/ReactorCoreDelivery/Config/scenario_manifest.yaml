@@ -1,0 +1,107 @@
+scenario_name: ReactorCoreDelivery
+scene_name: ReactorCoreDelivery
+agent_class: ReactorCoreDeliveryAgent
+behavior_name: ReactorCoreDeliveryAgent
+training_config: reactor_core_delivery_config.yaml
+learning_goal: "Learn a clean walk-up to the loose core first, then escort or shove it through the corridor hazards, merge chicane, and a few pushable support carts under an active meltdown countdown, and only count success once the physical core stays settled inside ReactorSocket long enough to seat and the agent closes in to finish the insertion before the reactor goes critical."
+success_conditions:
+  - "The physical reactor core settles inside ReactorSocket and survives the settle window."
+  - "After the core is seated, the agent closes to within insertion range and completes the handoff."
+failure_conditions:
+  - "Sweeping Laser hits the agent."
+  - "EnvironmentManager fallThreshold is crossed."
+  - "The physical reactor core falls away or escapes corridor bounds before seating."
+  - "Meltdown countdown reaches zero before the physical core is seated, triggering a reactor explosion timeout."
+  - "Episode reaches MaxStep before the socket insertion is finished."
+observation_contract:
+  vector_size: 52
+  child_sensors:
+    - "CourierView grayscale camera sensor (64x36) mounted near head height and looking down the corridor."
+  items:
+    - "agent normalized local x/z (2)"
+    - "agent planar velocity x/z (2)"
+    - "normalized vector to the physical core x/z and normalized distance (3)"
+    - "normalized vector to ReactorSocket x/z (2)"
+    - "normalized vector from the physical core to ReactorSocket x/z and normalized distance (3)"
+    - "physical core planar velocity x/z (2)"
+    - "normalized vector to current escort anchor x/z (2)"
+    - "laser center delta x/z, laser phase sin/cos, laser sweep angle normalized (5)"
+    - "divider-side pusher center delta x/z, pusher phase sin/cos, pusher active flag, safe window normalized (6)"
+    - "blast door center delta x/z, door phase sin/cos, door open amount, passable flag (6)"
+    - "up to three movable support carts: delta x/z, normalized distance, planar velocity x/z each (15)"
+    - "socket settle readiness normalized (1)"
+    - "core-docked flag after the settle window (1)"
+    - "meltdown countdown remaining normalized (1)"
+    - "shock recovery remaining normalized (1)"
+action_contract:
+  type: continuous
+  size: 2
+  mapping:
+    - "index 0: strafe / horizontal movement on corridor plane"
+    - "index 1: forward / backward movement on corridor plane"
+reward_rules:
+  terminal:
+    - "Success: +1.5 plus up to +0.75 speed bonus based on remaining meltdown time when the core is seated and the agent closes in to finish the insertion."
+    - "Laser hit or lost core fail: -1.0"
+    - "Meltdown timeout fail: -1.1 and the corridor detonates."
+  dense:
+    - "engage bonus: +0.20 the first time the agent reaches the loose core"
+    - "approach shaping: +0.012 * delta while the task is still just reaching the docked core"
+    - "core delivery shaping: +0.018 * delta from the core's own progress toward ReactorSocket once the core is moving"
+    - "socket settle shaping: +0.05 * delta from settle readiness once the core is in delivery phase"
+    - "socket settle bonus: +0.25 the first time the physical core seats inside ReactorSocket"
+    - "zone transition bonus: +0.06 when the core advances into a later corridor zone"
+  penalties:
+    - "step penalty: -0.00075"
+    - "backtracking penalty before contact: -0.008 * abs(delta) when the agent loses approach progress to the core"
+    - "backtracking penalty after contact: -0.01 * abs(delta) when the core loses goal progress"
+    - "divider-side pusher hit: -0.10 and a sideways launch toward the hot floor strip"
+    - "empty goal visit before the core is docked: -0.03"
+    - "lost core fail: -1.0 if the reactor core falls or escapes corridor bounds"
+randomization_knobs:
+  - name: "randomization_strength"
+    purpose: "Controls start x/z jitter while keeping the first shove into the physical core readable."
+    default: "0.45"
+  - name: "support_prop_jitter"
+    purpose: "Adds positional jitter to the movable support carts so the agent cannot memorize a single prop exploit."
+    default: "0.25"
+  - name: "phase_jitter"
+    purpose: "Offsets laser, pusher, and blast door cycles so timing is not memorized."
+    default: "0.30"
+  - name: "laser_speed_scale"
+    purpose: "Scales Sweeping Laser cycle speed."
+    default: "1.0"
+  - name: "shock_active_scale"
+    purpose: "Scales the divider-side pusher's active duration so early lessons can stay readable."
+    default: "1.0"
+  - name: "door_open_scale"
+    purpose: "Scales Blast Door open duration."
+    default: "1.0"
+  - name: "delivery_deadline_scale"
+    purpose: "Scales the meltdown countdown so early lessons have more slack and later lessons demand faster delivery."
+    default: "1.0"
+difficulty_stages:
+  - name: WalkUp
+    intent: "Teach the agent to walk up cleanly, contact the loose core, and start the escort with forgiving hazard timing, a readable chicane, and nearly fixed support-cart placement."
+  - name: CoreEscort
+    intent: "Bring the laser, pusher, door, and countdown closer to their real cadence once the core approach is stable, while letting the agent start discovering cart-assisted lines."
+  - name: DeliveryPressure
+    intent: "Require reliable socket seating, aggressive pace, tighter hazard cadence, and robust use-or-ignore decisions around the movable carts once full delivery flow is working."
+visual_theme:
+  style: "Industrial sci-fi reactor delivery lane with a glowing loose core on the pickup dock, a divider-side pusher that can fling the courier onto the hot floor strip, a merge chicane, a few pushable maintenance carts, a screen-space meltdown countdown with red emergency siren treatment, and a big comedic reactor detonation if delivery fails."
+  readability: "The moving core, hazard windows, and final socket stay readable from two follow cameras, while the meltdown countdown and alert state remain visible from any viewpoint through a screen-space HUD."
+camera_plan:
+  default_view: "DefaultView should sit a little farther back so the pickup dock, split lanes, and most of the corridor read at a glance."
+  recording_cuts:
+    - "RecordAgentRearFollow: trail the courier from behind with a slightly longer offset so the lane ahead and the core stay in frame."
+    - "RecordAgentFrontFollow: face back toward the courier for the recovery and final delivery beats while indoor blockers ghost out."
+    - "If the countdown expires, the explosion beat should hold just long enough to read the launch, then cut to black before the next trial appears."
+acceptance_criteria:
+  - "Heuristic play can shove or escort the physical core out of the dock and only succeeds after the core is stably seated in the socket and the agent closes in."
+  - "The movable support carts reset cleanly every episode, can be shoved by the courier, and can interact with the moving core without breaking validator references."
+  - "If the countdown expires before the core is seated, the emergency HUD becomes critical, the goal chamber erupts, the courier gets blasted away, and the feed cuts to black just before the next trial."
+  - "Scenario validator passes with GoldenSpine, TrainingVisualizer, and RecordingHelper references intact."
+  - "Build for Colab includes the updated manifest and reactor_core_delivery_config.yaml."
+  - "Inference and recording views still keep the courier and moving core readable with only the two follow cuts and no debug UI."
+baseline_run: ""
+spec_version: 9

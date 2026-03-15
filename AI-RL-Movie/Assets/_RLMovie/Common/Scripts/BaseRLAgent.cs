@@ -212,7 +212,7 @@ namespace RLMovie.Common
         public float LastCompletedEpisodeReward => lastCompletedEpisodeReward;
 
         /// <summary>完了済みエピソード数</summary>
-        public int CompletedEpisodes => successCount + failCount;
+        public new int CompletedEpisodes => successCount + failCount;
 
         /// <summary>総エピソード数（完了済み）</summary>
         public int TotalEpisodes => CompletedEpisodes;

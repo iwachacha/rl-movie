@@ -100,9 +100,15 @@ V1 の危険要素候補:
 
 - [`3D Scifi Kit Starter Kit`](https://assetstore.unity.com/packages/3d/environments/3d-scifi-kit-starter-kit-92152)
 
-補助候補は大物環境の密度を一気に足せるが、
-Asset Store 上では `URP not compatible` 表記のため、
-本プロジェクトでは主力ではなく検証前提の追加候補として扱う。
+`3D Scifi Kit Starter Kit` は現在 repo 内の
+`AI-RL-Movie/Assets/ThirdParty/_Creepy_Cat/` に取り込み済み。
+ただし Asset Store 上では `URP not compatible` 表記で、
+実際の同梱物にも Built-In / HDRP 向け package や custom shader が含まれる。
+
+そのため本プロジェクトでは、
+「主力の土台」ではなく
+`通路骨格を足すための補助アセット`
+として扱う。
 
 ## Asset Usage
 
@@ -112,13 +118,25 @@ Asset Store 上では `URP not compatible` 表記のため、
 - `Creative Characters FREE`: 主役となる人間型エージェントの見た目ベース
 - `Human Basic Motions FREE`: 待機、走行、簡易リアクションなど録画で見栄えを補強する動き
 - `Simple FX - Cartoon Particles`: 通電、火花、起動成功、軽い被弾感などの視覚演出
-- `3D Scifi Kit Starter Kit`: 追加の壁面、床、SF小物が必要な場合だけ補助的に使う
+- `3D Scifi Kit Starter Kit`: 通路骨格の壁・床・扉・警告サインを足したい時だけ補助採用する
 
 シーン内での配置意図:
 
 - `スタート区画`: 端末、搬送ラック、静かな照明で「任務開始前」の空気を作る
 - `危険区画`: レーザー、通電床、警告灯、火花で危険を読みやすく見せる
 - `ゴール区画`: 炉心ソケット、強い発光、成功時の起動演出でクライマックスを作る
+
+`3D Scifi Kit Starter Kit` を使う場所:
+
+- `通路の外殻`: 壁、床、ドア枠、警告サインで「施設そのもの」の骨格を作る
+- `危険区画の縁`: danger sign、フェンス、床パネルで危険レーンの輪郭を強調する
+- `主役以外の背景`: 当たり判定に関係しない補助壁面や天井まわりの密度出しに限定する
+
+逆に V1 では、次は主役にしない:
+
+- shader 依存が強そうなガラス、発光ライト、空、demo scene 全体
+- hazard 判定に直結する床やレーザーの可読レイヤー
+- 見た目が崩れた prefab の無理な継続採用
 
 ## Import Priority
 
@@ -128,10 +146,34 @@ Asset Store 上では `URP not compatible` 表記のため、
 2. `Creative Characters FREE`
 3. `Human Basic Motions FREE`
 4. `Simple FX - Cartoon Particles`
-5. `3D Scifi Kit Starter Kit` は必要になった場合だけ追加確認
+5. `3D Scifi Kit Starter Kit` は取り込み済みだが、scene 採用は URP spot-check 後
 
 この順にすると、まず環境のトーンとキャラ縮尺を固め、
 その後で動きと演出を足せる。
+
+実運用では、
+`Cosmic Retro で安全に密度を出す`
+`_Creepy_Cat で通路骨格を必要箇所だけ補う`
+の順がよい。
+
+## Environment Build Policy
+
+Reactor Core Delivery の V1 では、
+環境アセットの責務を次のように分ける。
+
+- `Cosmic Retro`: 端末、ロッカー、モニター、箱、制御パネルなどの安全な背景密度
+- `3D Scifi Kit Starter Kit`: 壁、床、扉、フェンス、warning sign などの大型通路モジュール
+- `自前メッシュ / 自前Collider`: レーザー、通電床、失敗判定、可読性が必要な gameplay 要素
+
+この分離が重要なのは、
+URP 互換が怪しい asset をそのまま hazard 本体に使うと、
+見た目の崩れが学習課題の可読性まで壊すため。
+
+V1 の基本方針は:
+
+- 通路の輪郭は `_Creepy_Cat` prefab を候補にする
+- 通らせたいレーンと危険判定は自前実装で確定する
+- `_Creepy_Cat` 側で見た目が崩れた箇所は `Cosmic Retro` またはシンプル geometry に置き換える
 
 ## Compatibility Notes
 
@@ -140,6 +182,9 @@ Asset Store 上では `URP not compatible` 表記のため、
 - `Creative Characters FREE` と `Human Basic Motions FREE` は用途上の相性を優先して採用候補にしているため、import 後に Rig や Avatar の整合確認は必要
 - `Simple FX - Cartoon Particles` は演出用で、見た目が合わない場合は一部だけ使う
 - `3D Scifi Kit Starter Kit` は `URP not compatible` 表記のため、入れる場合はマテリアル修正コストを見込む
+- 取り込み済みの `_Creepy_Cat` には demo scene、audio、custom shader、Built-In/HDRP 向け package も含まれる
+- まずは `Walls` `Floors` `Doors` `Symbols` など静的モジュールだけ spot-check し、OK な prefab だけ使う
+- `Glass` `Lights` `Skybox` `Camera Profile` `Turn_Move.cs` は V1 の必須依存にしない
 
 ## Risks To Avoid In V1
 
