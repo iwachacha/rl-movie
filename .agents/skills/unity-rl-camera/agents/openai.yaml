@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity RL Camera"
+  short_description: "Design camera packages and RecordingHelper behavior for RL video."
+  default_prompt: "Use $unity-rl-camera to design or improve this scenario's camera anchors, shot package, and RecordingHelper setup for RL Movie."

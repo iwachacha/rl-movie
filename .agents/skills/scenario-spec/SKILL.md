@@ -9,6 +9,7 @@ description: Design or revise an RL scenario contract before implementation. Use
 - 先に `../../references/project-direction.md` と `../../references/manifest-contract.md` を読む
 - 学習比較に関わる変更なら `../../references/experiment-rules.md` も読む
 - 録画前提の設計を含むなら `../../references/video-standard.md` も読む
+- `camera_plan` の中身や shot package まで設計するなら `../unity-rl-camera/SKILL.md` を先に読む
 - まず「視聴者が何を見て面白がるか」を 1 文で固定し、そのあとに RL の学習課題へ落とす
 - V1 は 1 つの読みやすい学習ループに絞り、目的・危険・成功失敗が数秒で伝わる構成を優先する
 - 高品質化は複雑な agent 挙動より、環境、障害物、prop、camera、reset 演出で稼ぐ方を優先する

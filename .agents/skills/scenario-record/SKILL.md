@@ -10,6 +10,9 @@ description: Prepare or capture recorded playback of trained scenarios. Use when
 - 学習済みモデルを取り込み、`Inference Only` で再生確認できるまでは録画しない
 - `TrainingVisualizer` やデバッグ UI を見せるか隠すかを先に決める
 - `RecordingHelper` 設定と `camera_plan` に沿ってカメラ構成を決める
+- 実際の shot package、camera anchor 配置、follow cut の使い方を詰める論点なら `../unity-rl-camera/SKILL.md` を先に読む
+- タイトル、サムネ、冒頭10秒、編集ビート、比較構成まで決める論点なら `../rl-video-packaging/SKILL.md` を先に読む
+- パッケージが固まり、次の論点がナレーション原稿や TTS 向け台本なら `../rl-video-scriptwriting/SKILL.md` を先に読む
 - 導入、本編、必要なら比較カットの順でカット構成を決める
 - 出力名は run を追跡できる形にする
 - 録画用途だけのカメラ / UI 調整は RL 比較結果と混ぜて主張しない

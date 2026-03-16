@@ -15,6 +15,8 @@ Apply small, validated edit loops that preserve scene integrity, serialized refe
 1. Read the target scene state before editing.
 Inspect the current GameObjects, required references, and nearby naming patterns before creating or rewiring anything.
 For RL scenarios, always keep the validator expectations in mind: agent, behavior settings, visualizer, recording helper, config files, and manifest alignment.
+If the user's main goal is visual polish, composition, lighting, dressing, or readability rather than pure scene safety, load `../unity-scene-visual/SKILL.md` before editing.
+If the user's main goal is camera anchor layout, shot coverage, `RecordingHelper`, or follow-cut behavior, load `../unity-rl-camera/SKILL.md` before editing.
 
 2. Make the smallest coherent batch of edits.
 Prefer one logical batch such as "create camera anchors and wire `RecordingHelper`" or "add one serialized field and assign it" over a long chain of unrelated scene mutations.

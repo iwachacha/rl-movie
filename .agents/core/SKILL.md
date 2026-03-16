@@ -20,6 +20,9 @@ description: Common repository guardrails for RL Movie. Use when a request is re
 - コード説明、実装の逐次実況、長い背景説明は、依頼された場合かリスク判断に必要な場合だけ出す
 - ユーザー入力は repo や現在状態から安全に確定できない重要判断だけに絞り、推定可能なら前進する
 - 省入力・省出力を優先しても、精度に必要な検証、保存確認、`Console` 確認は省略しない
+- 複数フェーズにまたがる task では、早い段階で次の検証チェックポイントを明示する
+- 繰り返し起きやすい不具合、レビュー指摘、手戻りが絡む task では `../skills/lessons-maintenance/SKILL.md` を読む
+- 新しい学びを残すときは、グローバルルールを増やす前に `../skills/lessons-maintenance/SKILL.md` を使って置き場所と統合方針を先に決める
 - `AI-RL-Movie/Assets/ThirdParty/` はユーザーの明示依頼がない限り読まない・検索しない・編集しない
 - `AI-RL-Movie/Library/`、`Temp/`、`Logs/`、`UserSettings/`、`Assets/ML-Agents/` は触らない
 - `.meta` を手動作成・手動編集・手動削除しない

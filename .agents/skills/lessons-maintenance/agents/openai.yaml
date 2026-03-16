@@ -1,0 +1,4 @@
+interface:
+  display_name: "Lessons Maintenance"
+  short_description: "Curate reusable lessons without instruction sprawl."
+  default_prompt: "Use $lessons-maintenance to capture, merge, or prune repo lessons."

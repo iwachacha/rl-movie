@@ -6,7 +6,7 @@ param(
     [string]$RunId,
 
     [string]$ResultsDir = ".tmp-training-results",
-    [string]$VenvDir = ".venv-mlagents-1.1.0",
+    [string]$VenvDir = ".venv-mlagents",
     [string]$EnvPath,
     [int]$Seed = 1,
     [switch]$Resume,

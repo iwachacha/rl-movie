@@ -1,5 +1,5 @@
 param(
-    [string]$VenvDir = ".venv-mlagents-1.1.0",
+    [string]$VenvDir = ".venv-mlagents",
     [string]$PythonVersion = "3.10.12",
     [switch]$Recreate
 )

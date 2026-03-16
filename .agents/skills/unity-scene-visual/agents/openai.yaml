@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Scene Visual"
+  short_description: "Raise RL scene polish and readability without harming gameplay clarity."
+  default_prompt: "Use $unity-scene-visual to improve this Unity scene's composition, lighting, dressing, and visual readability for RL Movie."

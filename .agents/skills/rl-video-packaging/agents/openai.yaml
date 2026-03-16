@@ -1,0 +1,4 @@
+interface:
+  display_name: "RL Video Packaging"
+  short_description: "Turn RL footage into a concrete title-thumbnail-edit package."
+  default_prompt: "Use $rl-video-packaging to turn this RL Movie footage or scenario into a concrete YouTube package with title, thumbnail, cold open, and beat order."

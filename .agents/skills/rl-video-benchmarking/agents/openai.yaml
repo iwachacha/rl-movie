@@ -1,0 +1,4 @@
+interface:
+  display_name: "RL Video Benchmarking"
+  short_description: "Benchmark RL video ideas against winning YouTube patterns."
+  default_prompt: "Use $rl-video-benchmarking to judge this scenario or video plan against successful reinforcement-learning and AI-simulation YouTube patterns."

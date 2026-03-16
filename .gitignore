@@ -51,6 +51,8 @@ Thumbs.db
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+.uv-cache/
+.venv-mlagents/
 
 # Notebooks output
 Notebooks/.ipynb_checkpoints/

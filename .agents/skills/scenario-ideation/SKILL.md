@@ -15,7 +15,7 @@ Prefer concepts that gain obvious visual value from free Asset Store assets or s
 
 1. Frame the brief quickly.
 Read `../../references/project-direction.md` when the user's goal is the best overall content direction, asset-led planning, or audience clarity.
-Read `../../../../docs/PROJECT_CONCEPT.md` when the user is shaping the project's voice, deciding what kinds of AI behavior feel on-brand, or choosing between ideas based on weirdness, failure entertainment, or long-term ambition.
+Read `../../../docs/PROJECT_CONCEPT.md` when the user is shaping the project's voice, deciding what kinds of AI behavior feel on-brand, or choosing between ideas based on weirdness, failure entertainment, or long-term ambition.
 Infer missing constraints unless they change the answer materially. Useful constraints are: desired tone, target video vibe, whether the concept should lean on already-imported assets or new free Asset Store assets, complexity budget, whether training should be quick or can be a stretch, whether the user wants many wild ideas or a tighter shortlist, and what flavor of AI behavior should dominate such as funny failure, eerie competence, exploit-seeking, or emergent social weirdness.
 
 2. Diverge before converging.
@@ -32,7 +32,12 @@ Prefer concepts that can be built from common Unity + ML-Agents patterns already
 Avoid recommending concepts that depend on advanced robotics, dense multi-agent coordination, realistic language understanding, high-fidelity destruction, deformables, fluids, complex grasping, procedural animation breakthroughs, or expert-level custom optimization.
 If the premise is strong but the implementation is too hard, salvage it with a simpler watchable core. Replace sophistication with better staging.
 
-5. Package each idea like a pitch for both production and implementation.
+5. Stress-test the shortlist with a quick repo-native gate.
+Read `references/quick-idea-gate.md` when narrowing many ideas into a shortlist, choosing one recommendation, or deciding whether a concept is strong enough to formalize.
+Use it to check emotional spike, instant legibility, entertaining failure, build leverage, and packaging potential.
+Drop or simplify concepts that are emotionally flat, visually ambiguous, or only interesting after explanation.
+
+6. Package each idea like a pitch for both production and implementation.
 For each candidate, usually include:
 - `Title`: short and memorable
 - `Viewer hook`: the one-sentence trailer
@@ -42,14 +47,15 @@ For each candidate, usually include:
 - `Build band`: `Easy`, `Moderate`, or `Stretch but feasible`
 - `Comedy / awe / weird / fear factor`: the dominant emotional note
 
-6. Recommend a direction, not just a pile of options.
+7. Recommend a direction, not just a pile of options.
 If the user asks for ideas, end with one best-balance pick and one wild-card pick.
 Explain why the best-balance pick is the safest path to a compelling video.
+If the user asks whether an idea is likely to work as a video, wants precedent from successful RL / AI YouTube channels, or needs help shaping title / thumbnail / first-10-second packaging, run the quick gate first, then load `../rl-video-benchmarking/SKILL.md` before locking the final recommendation.
 If the brief says to stay inside assets that are already imported in this repo, load `asset-inventory-planning` before locking the recommendation.
 If new visuals from outside the repo would materially improve the concept, load `unity-free-asset-research` before locking the final recommendation so the idea and free-asset plan are chosen together.
 If the user chooses a concept, first create a short concept memo in `docs/ideas/` as a hand-off artifact, then load `scenario-spec` when the user wants to formalize it.
 
-7. Create a concept memo once the idea is locked.
+8. Create a concept memo once the idea is locked.
 Write one compact Markdown note under `docs/ideas/` that captures the agreed direction before deeper specification.
 Use it as a bridge between ideation and formal scenario design.
 Include:
@@ -89,6 +95,7 @@ Keep the memo short, directional, and stable enough to revisit later.
 
 - For broad ideation, usually return 4-8 ideas with deliberate tonal spread.
 - For shortlist requests, return 3-5 stronger candidates with clearer tradeoffs.
+- When narrowing or recommending, use the quick gate as a light filter. Keep full scorecards rare unless the user explicitly wants scoring.
 - Keep each idea compact and concrete.
 - Avoid vague genres like "survival" or "puzzle" without a specific visual setup.
 - If the user asks for "more," pivot to a new emotional lane or spectacle lever instead of remixing the same concept.
@@ -96,6 +103,7 @@ Keep the memo short, directional, and stable enough to revisit later.
 ## Hand-off
 
 - Use `references/idea-lenses.md` when ideas are too similar, too safe, or too difficult.
+- Use `references/quick-idea-gate.md` before concept lock when you need to rank candidates, cut weak ideas, or justify one recommendation.
 - Once the user selects a concept, create a concept memo in `docs/ideas/` before moving to `scenario-spec`.
 - If the concept should be constrained by assets already present in the repo, use `asset-inventory-planning` before finalizing the memo so the memo reflects the current inventory rather than wishful imports.
 - If the concept depends heavily on new free Asset Store visuals, use `unity-free-asset-research` before finalizing the memo so the memo includes the actual asset shortlist, intended usage, and compatibility notes.

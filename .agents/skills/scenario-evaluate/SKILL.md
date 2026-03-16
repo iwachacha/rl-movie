@@ -49,5 +49,6 @@ State the main reason in one sentence and the next action to take.
 
 ## Handoffs
 
-If the result is adoptable, hand off to `scenario-train` for import steps or `scenario-record` for final capture.
+If the result is adoptable, hand off to `scenario-train` for import steps, `scenario-record` for final capture, or `rl-video-packaging` when the user wants a concrete upload package.
+If the result is adoptable but the user wants to know whether the artifact chain is actually strong enough as content, hand off to `rl-video-quality-gate`.
 If the result is not adoptable, hand off to `scenario-fix`, `scenario-spec`, or `rl-instrumentation` depending on whether the issue is implementation, design, or observability.

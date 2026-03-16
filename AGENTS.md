@@ -17,7 +17,12 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 
 ## Local Skills
 - `agents-maintenance`: edit `AGENTS.md`, `.agents/`, skill layout, or instruction architecture.
+- `lessons-maintenance`: capture, merge, promote, and prune reusable repo lessons so knowledge stays useful without sprawling.
 - `asset-inventory-planning`: summarize which third-party assets are already imported, what they can do, which combinations are promising, and whether a scenario can be built from current inventory before researching more.
+- `rl-video-benchmarking`: benchmark scenario ideas, hooks, titles/thumbnails, and first-10-second plans against successful RL and AI-simulation YouTube patterns before locking direction.
+- `rl-video-quality-gate`: review a concept, scene, footage, package, script, or whole episode against the project's watchability bar and winning RL/AI YouTube patterns, then identify the top blockers and next step.
+- `rl-video-packaging`: turn recorded or candidate RL footage into a concrete upload package with cold open, beat order, title/thumbnail options, clip picks, and viewer-facing copy.
+- `rl-video-scriptwriting`: write beat-aligned narration, TTS-friendly voiceover, and text-card copy once a video's package and footage are mostly locked.
 - `scenario-ideation`: invent video-worthy RL scenario themes and shortlist ideas that stay feasible to implement in this repo. Pair with `unity-free-asset-research` when free Asset Store visuals should influence the idea or be captured in the final hand-off memo.
 - `scenario-spec`: define or revise scenario contracts before implementation.
 - `scenario-build`: create or change scene/C#/YAML/manifest under `_RLMovie`.
@@ -26,6 +31,8 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 - `scenario-record`: verify `Inference Only`, camera/UI policy, or recording flow.
 - `scenario-fix`: debug defects, isolate causes, plan minimal fixes, or decide retraining.
 - `rl-instrumentation`: add lightweight reward, termination, observation, and reset diagnostics for ML-Agents debugging.
+- `unity-scene-visual`: improve scene readability and polish for RL video through composition, lighting, dressing, materials, and safe local URP volume decisions, especially when UnityMCP output looks flat or low-fidelity.
+- `unity-rl-camera`: design RL-video camera packages, anchor layouts, and `RecordingHelper` behavior so scenarios read clearly and record well instead of relying on one generic angle.
 - `unity-mcp-safe-ops`: perform Unity scene or asset edits through MCP in small validated batches that preserve RL setup integrity.
 - `curriculum-randomization`: design or revise curriculum stages and domain randomization for learnability and generalization.
 - `run-ingest-archive`: organize returned training artifacts, adoption decisions, and run metadata by `run_id`.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "RL Video Scriptwriting"
+  short_description: "Write RL voiceover scripts and TTS-friendly narration."
+  default_prompt: "Use $rl-video-scriptwriting to turn this RL Movie package or recorded footage into a beat-aligned narration script with TTS-friendly voiceover and text-card copy."

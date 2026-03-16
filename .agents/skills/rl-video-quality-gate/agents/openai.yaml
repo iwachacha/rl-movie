@@ -1,0 +1,4 @@
+interface:
+  display_name: "RL Video Quality Gate"
+  short_description: "Run a cross-stage go/no-go review on RL video quality."
+  default_prompt: "Use $rl-video-quality-gate to review this RL Movie concept, footage, package, or script against the project's watchability bar and winning RL video patterns."
