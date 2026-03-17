@@ -18,6 +18,7 @@ Read `../../references/project-direction.md` and `../../references/video-standar
 Read `../rl-video-benchmarking/references/youtube-patterns.md`.
 Read `references/episode-beats.md` and `references/title-thumbnail.md`.
 If the task is selecting among raw recordings or comparisons, also read `references/footage-selection.md`.
+If the scenario manifest already defines `viewer_promise`, `visual_hooks`, or `thumbnail_moment`, treat them as the starting hypothesis and tighten from there instead of reinventing the package from scratch.
 
 2. Lock the viewer promise in one sentence.
 Frame it as what the viewer gets to watch, not what algorithm was used.

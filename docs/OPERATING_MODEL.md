@@ -1,8 +1,8 @@
-# RL Movie — Operating Model
+﻿# RL Movie — Operating Model
 
 ## 目的
 
-このプロジェクトは `1人 + AI + UnityMCP` で、強化学習シナリオを再利用しやすい形で量産することを目指す。
+このプロジェクトは `1人 + AI + UnityMCP` で、強化学習シナリオを「実験として正しい」だけでなく「動画として見たくなる」形で量産することを目指す。
 
 ## AI instruction の運用
 
@@ -21,15 +21,22 @@
 
 ## 標準パイプライン
 
-1. `Spec` で `scenario_manifest.yaml` を固める
-2. `Build` で実装する
-3. `RLMovie > Validate Current Scenario`
-4. `Heuristic` 確認
-5. `RLMovie > Build for Colab (Current Scene)`
-6. `Notebooks/rl_movie_training.ipynb`
-7. `RLMovie > Import Trained Model`
-8. `Inference Only` 確認
-9. `Record`
+1. 必要なら ideation / benchmark を行い、`docs/ideas/` に concept memo を置く
+2. `Spec` で `scenario_manifest.yaml` を固める
+3. この段階で `viewer_promise`、`visual_hooks`、`thumbnail_moment` を明示する
+4. `Build` で実装する
+5. `RLMovie > Validate Current Scenario`
+6. `Heuristic` 確認
+7. `RLMovie > Build for Colab (Current Scene)`
+8. `Notebooks/rl_movie_training.ipynb`
+9. `scenario-evaluate` で採用判断を行う
+10. `RLMovie > Import Trained Model`
+11. `Inference Only` 確認
+12. `Record`
+13. `rl-video-packaging`
+14. 必要なら `rl-video-scriptwriting`
+15. publishability が論点なら `rl-video-quality-gate`
+16. 採用 run と判断を `RunArchive/` に残す
 
 ## 品質ゲート
 
@@ -40,6 +47,7 @@
 - `Heuristic` が通る
 - `Behavior Name`、training YAML、manifest が一致している
 - `DecisionRequester`、`TrainingVisualizer`、`RecordingHelper` が必要構成としてそろっている
+- manifest に `viewer_promise`、`visual_hooks`、`thumbnail_moment` が入っている
 
 ### 録画前
 
@@ -47,3 +55,10 @@
 - `Inference Only` が通る
 - UI / camera / cut 構成が決まっている
 - 出力名で run を追跡できる
+
+### 公開前
+
+- title / thumbnail / cold open が同じ viewer promise を支えている
+- 最初の 10 秒で目的・危険・結果が伝わる
+- package や script が footage の弱さを無理に説明で埋めていない
+- 採用判断と使用 run が `RunArchive/` で追跡できる

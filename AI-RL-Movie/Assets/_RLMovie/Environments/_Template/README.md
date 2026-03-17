@@ -8,6 +8,7 @@ Use:
 
 What is standardized:
 - `scenario_manifest.yaml` contract shape
+- `viewer_promise`, `visual_hooks`, and `thumbnail_moment` as the viewer-facing contract captured before build
 - `training_config` in the manifest selects the active training YAML for validation, build, and Colab
 - `EnvironmentRoot`, `ScenarioGoldenSpine`, `EnvironmentManager`
 - `TrainingVisualizer`, `RecordingHelper`, and wide/follow camera anchors

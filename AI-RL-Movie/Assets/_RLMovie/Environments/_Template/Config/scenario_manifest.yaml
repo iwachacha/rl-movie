@@ -6,6 +6,7 @@ scene_name: Template
 agent_class: TemplateAgent
 behavior_name: TemplateAgent
 training_config: "__TRAINING_CONFIG_NAME__"
+viewer_promise: "小さなエージェントが落下せずに Goal へ届くまでの失敗と上達を見せる"
 learning_goal: "スターター骨格ではエージェントが落下せずに Goal へ到達する基本方策を学習する"
 success_conditions:
   - "エージェントと Goal の距離が goalDistance 未満になったら成功"
@@ -53,6 +54,11 @@ difficulty_stages:
 visual_theme:
   style: "ビジュアルは自由に差し替えるが Goal と Agent の可読性を保つ"
   readability: "色・サイズ・カメラで成功と失敗が UI なしでも読めるようにする"
+visual_hooks:
+  - "小さな Agent と光る Goal がむき出しの足場で対比される"
+  - "落下や立て直しが広角でひと目に読める"
+  - "Goal 手前の近接ミスと最後の到達が対比で映える"
+thumbnail_moment: "Goal 目前で落下しそうな Agent を Goal と一緒に大きく見せる"
 camera_plan:
   default_view: "DefaultView を学習確認とプレイバックの基準カメラにする"
   recording_cuts:
@@ -60,8 +66,8 @@ camera_plan:
     - "RecordWideRight"
     - "RecordFollowRear"
 acceptance_criteria:
-  - "ScenarioBroadcastOverlay 縺ｧ Goal 縺ｨ Latest event 繧貞ｮ滄圀縺ｧ縺阪ｋ"
-  - "ScenarioHighlightTracker 縺ｧ sparse export 縺碁壹ｋ"
+  - "ScenarioBroadcastOverlay で Goal と Latest event を画面上で読める"
+  - "ScenarioHighlightTracker で sparse export が取れる"
   - "Heuristic で Goal 到達を再現できる"
   - "ScenarioGoldenSpine の参照が埋まっている"
   - "Validate Current Scenario が通る"

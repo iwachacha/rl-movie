@@ -24,6 +24,7 @@ namespace RLMovie.Editor
             "agent_class",
             "behavior_name",
             "training_config",
+            "viewer_promise",
             "learning_goal",
             "success_conditions",
             "failure_conditions",
@@ -33,6 +34,8 @@ namespace RLMovie.Editor
             "randomization_knobs",
             "difficulty_stages",
             "visual_theme",
+            "visual_hooks",
+            "thumbnail_moment",
             "camera_plan",
             "acceptance_criteria",
             "baseline_run",
@@ -168,6 +171,18 @@ namespace RLMovie.Editor
             {
                 report.AddError("manifest の `training_config` が空です。");
                 return;
+            }
+
+            string viewerPromise = ReadTopLevelScalar(manifestPath, "viewer_promise");
+            if (string.IsNullOrWhiteSpace(viewerPromise))
+            {
+                report.AddError("manifest の `viewer_promise` が空です。");
+            }
+
+            string thumbnailMoment = ReadTopLevelScalar(manifestPath, "thumbnail_moment");
+            if (string.IsNullOrWhiteSpace(thumbnailMoment))
+            {
+                report.AddError("manifest の `thumbnail_moment` が空です。");
             }
 
             if (!string.Equals(Path.GetFileName(trainingConfig), trainingConfig, StringComparison.Ordinal))

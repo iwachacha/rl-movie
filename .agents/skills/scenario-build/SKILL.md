@@ -8,6 +8,7 @@ description: Implement or modify RL scenarios in this repository. Use when creat
 - 主モードは `Build`
 - 先に `../../references/manifest-contract.md` と `../../references/validation-build-gates.md` を読む
 - 学習比較まで見据える変更なら `../../references/experiment-rules.md` も読む
+- 新規シナリオは `../scenario-spec/SKILL.md` で `viewer_promise`、`visual_hooks`、`thumbnail_moment` を manifest に固めてから build に入る
 - 新規シナリオは `AI-RL-Movie/Assets/_RLMovie/Environments/<PascalCase>/` に作る
 - 必須フォルダは `Scenes/`、`Scripts/`、`Prefabs/`、`Config/`
 - 新規作成は Scene、Agent、training YAML、`scenario_manifest.yaml` の 4 点セットで始める

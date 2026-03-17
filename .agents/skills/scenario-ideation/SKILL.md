@@ -70,6 +70,7 @@ Include:
 - `Asset usage`: what each chosen asset will be used for in the scene, by area or role
 - `Import priority`: the recommended download / import order when asset setup matters
 - `Good next step`: usually `scenario-spec`
+When the idea moves into `scenario-spec`, copy `Core fantasy` into manifest `viewer_promise`, turn the strongest sellable frame into `thumbnail_moment`, and carry the best on-screen beats into `visual_hooks`.
 Keep the memo short, directional, and stable enough to revisit later.
 
 ## Creative Standard

@@ -1,4 +1,4 @@
-# RL Movie — Project Structure
+﻿# RL Movie — Project Structure
 
 ## ディレクトリ全体図
 
@@ -9,13 +9,14 @@ c:\rl-movie\
 |   |-- core/
 |   |   `-- SKILL.md
 |   |-- skills/
-|   |   |-- agents-maintenance/
-|   |   |-- scenario-spec/
-|   |   |-- scenario-build/
-|   |   |-- scenario-train/
-|   |   |-- scenario-record/
-|   |   |-- scenario-fix/
-|   |   `-- asset-intake/
+|   |   |-- scenario-*/
+|   |   |-- rl-video-*/
+|   |   |-- unity-*/
+|   |   |-- asset-*/
+|   |   |-- curriculum-randomization/
+|   |   |-- rl-instrumentation/
+|   |   |-- lessons-maintenance/
+|   |   `-- run-ingest-archive/
 |   |-- references/
 |   |-- workflows/
 |   `-- RULES.md
@@ -31,7 +32,9 @@ c:\rl-movie\
 |   |-- ColabBuilds/
 |   `-- ProjectSettings/
 |-- Notebooks/
+|-- RunArchive/
 `-- docs/
+    `-- ideas/
 ```
 
 ## AI 向け instruction の考え方
@@ -47,8 +50,9 @@ c:\rl-movie\
 
 - `AI-RL-Movie/Assets/_RLMovie/Common/`: 共通コードと editor utilities
 - `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/`: シナリオ固有の Scene、Script、Prefab、Config
-- `AI-RL-Movie/Assets/_RLMovie/Environments/_Template/`: 新規シナリオのコピー元
+- `AI-RL-Movie/Assets/_RLMovie/Environments/_Template/`: 新規シナリオ generator の正本テンプレート
 - `Notebooks/rl_movie_training.ipynb`: Colab 学習 notebook
+- `docs/ideas/`: ideation から spec へ渡す concept memo
 
 ## 生成物 / 取込物
 
@@ -69,4 +73,5 @@ c:\rl-movie\
 1. `.agents/`
 2. `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/Config/scenario_manifest.yaml`
 3. シナリオ固有 C# / Scene / training YAML
-4. `docs/`
+4. `docs/ideas/` の concept memo
+5. `docs/`

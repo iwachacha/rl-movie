@@ -5,7 +5,7 @@
 - `AI-RL-Movie/Assets/_RLMovie/`
   - `Common/`: 共通コードと editor utilities。`BaseRLAgent`、`ScenarioValidator`、`BuildForColab`、`ImportTrainedModel`、`TrainingVisualizer`、`RecordingHelper`
   - `Environments/<Scenario>/`: シナリオ固有の `Scenes/`、`Scripts/`、`Prefabs/`、`Config/`
-  - `Environments/_Template/`: `Create Golden Scenario Starter Files` が参照する正本テンプレート
+  - `Environments/_Template/`: `Create Golden Scenario Starter Files` が参照する正本テンプレート。手コピー元ではなく generator source
   - `Recording/`: Recorder 設定
 - `Notebooks/rl_movie_training.ipynb`: Colab 学習 notebook
 - `RunArchive/`: 返却済み training artifact と採用判断の保存先
@@ -14,8 +14,9 @@
 
 ## 契約と入口
 
+- コンセプト handoff の入口: `docs/ideas/*.md`
 - シナリオ契約の入口: `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/Config/scenario_manifest.yaml`
-- 新規シナリオ作成の入口: `RLMovie/Create Golden Scenario Starter Files` → 生成された `Create <Scenario> Scene`
+- 新規シナリオ作成の入口: concept memo or `scenario-spec` で viewer-facing contract を固める → `RLMovie/Create Golden Scenario Starter Files` → 生成された `Create <Scenario> Scene`
 - 学習用 build / validator / import の入口:
   - `AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs`
   - `AI-RL-Movie/Assets/_RLMovie/Common/Editor/BuildForColab.cs`

@@ -31,6 +31,7 @@ Then load only the matching stage references:
 - `Script`: `../rl-video-scriptwriting/references/script-beats.md`, `../rl-video-scriptwriting/references/voice-friendly-copy.md`
 - `Footage`: `../unity-rl-camera/references/shot-package.md`
 - `Scene`: `../unity-scene-visual/references/visual-pass-order.md`
+- `End-to-end`: all matching stage references above, and when the upstream weakness is the scenario contract itself, also read `../scenario-spec/SKILL.md`
 
 3. Judge viewer value before craft detail.
 Answer these first:
@@ -54,6 +55,7 @@ Not every category applies to every scope; score only what the current artifact 
 
 5. Call out the real blockers.
 Focus on the smallest set of problems that most limits publishability.
+For `End-to-end`, trace the earliest upstream blocker first instead of over-polishing downstream symptoms.
 Good blocker shapes are:
 - the concept needs a cleaner viewer promise
 - the scene is legible but not thumbnailable

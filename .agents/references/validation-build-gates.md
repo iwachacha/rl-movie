@@ -11,6 +11,7 @@
 - `scenario_manifest.yaml` が存在する
 - `Config/` に `scenario_manifest.yaml` と `template_config.yaml` 以外の training YAML が 1 つ以上ある
 - manifest の `training_config` が存在し、Config 内の対象 YAML を指している
+- manifest に `viewer_promise`、`visual_hooks`、`thumbnail_moment` があり、動画としての約束が空でない
 - シーン内に `BaseRLAgent` 継承 Agent がある
 - Agent に `BehaviorParameters` と `DecisionRequester` が付いている
 - `Behavior Name` が Agent クラス名と training YAML の behaviors キーに一致する
