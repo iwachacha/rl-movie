@@ -15,7 +15,6 @@
 
 - 入口:
   - `RLMovie/Create Scenario Starter Files`
-  - 旧 `Create Golden Scenario Starter Files` は deprecated alias
 - 生成物:
   - `scenario_manifest.yaml`
   - `scenario_blueprint.yaml`

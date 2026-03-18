@@ -30,7 +30,7 @@ Add a comparison shot only when the before/after story matters.
 
 3. Choose anchor patterns by scenario geometry.
 Use `references/anchor-patterns.md` to pick a baseline pattern such as arena, course, room, field, or swarm.
-Treat the Golden Scenario starter anchors as the default package to improve, not as disposable boilerplate.
+Treat the V2 starter anchors as the default package to improve, not as disposable boilerplate.
 
 4. Give every shot one job.
 - `Explain shot`: establish the rule, spatial relationship, and risk.
@@ -39,7 +39,7 @@ Treat the Golden Scenario starter anchors as the default package to improve, not
 If two shots do the same job, cut one.
 
 5. Keep the package repo-aligned.
-- When `ScenarioGoldenSpine` exists, keep `defaultCameraView`, `recordingCameraViews`, and `RecordingHelper.cameraPositions` aligned.
+- When `ScenarioGoldenSpine` exists, ensure camera anchors are properly bound through the `ScenarioBackboneContext` or inspector.
 - Keep `followCameraIndex` pointed at the intended dynamic cut.
 - Prefer `hideUIWhenRecording = true` unless debug UI is deliberately part of the content.
 - Tune `cameraSwitchInterval` only when the cuts are meaningfully different.

@@ -41,7 +41,7 @@ Identify:
 - main hazard or failure source
 - playable lane or arena center
 - one hero shot that could plausibly become the thumbnail
-When `ScenarioGoldenSpine` exists, compose for `defaultCameraView` and `recordingCameraViews`, not only the Scene view.
+When `ScenarioGoldenSpine` exists, compose for the bound camera roles (e.g. `default_camera`, `explain`, `wide_a`), not only the Scene view.
 
 5. Apply the visual pass in order.
 Use this order unless a narrower request clearly changes it:

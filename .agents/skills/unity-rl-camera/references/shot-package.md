@@ -80,4 +80,4 @@ If unsure, start with:
 - two readable wides
 - one follow shot only if justified
 
-That pattern fits the repo's Golden Scenario starter and matches the "clear first, expressive second" pattern seen in successful RL and simulation videos.
+That pattern fits the repo's V2 scenario starter and matches the "clear first, expressive second" pattern seen in successful RL and simulation videos.

@@ -5,7 +5,7 @@ The repo already supports more than static anchor cycling, so configure it inten
 
 ## Baseline Package In This Repo
 
-The Golden Scenario starter creates:
+The V2 scenario starter creates:
 - `DefaultView`
 - `RecordWideLeft`
 - `RecordWideRight`
@@ -52,8 +52,8 @@ Treat that as the default package to refine, not random starter noise.
 
 - If camera switching is on and there are fewer than 2 `cameraPositions`, validator warns.
 - If `followCameraIndex` points to a cut but `followTarget` is missing, validator warns.
-- `ScenarioGoldenSpine.recordingCameraViews` should match `RecordingHelper.cameraPositions`.
-- `ScenarioGoldenSpine.defaultCameraView` and recording anchors should live under the scenario environment root.
+- Camera anchors should be registered to `ScenarioGoldenSpine` using `CameraRoleBinding` (e.g. `default_camera`, `explain`, `wide_a`).
+- Camera anchors should live under the scenario environment root.
 
 ## Anti-Patterns
 

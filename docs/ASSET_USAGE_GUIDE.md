@@ -10,14 +10,13 @@
 
 | 用途・やりたい事 | 対応アセット名 | 含まれる主な内容・できること |
 |------------------|---------------|-------------------------------|
-| **SF研究所や未来施設を豪華にしたい** | **Cosmic_Retro_Station_Props_FREE** | 端末、ロッカー、モニター、箱、制御パネルなどの SF プロップ |
 | **背景を豪華にしたい** | **Polytope Studio** | 中世・ファンタジー風の地面、木、岩、家、プロップ類 |
 | **空や時間を変えたい** | **BOXOPHOBIC** | 朝、昼、夕方、夜などの高品質な Skybox と拡張シェーダー |
 | **空のバリエーションを増やしたい** | **Fantasy Skybox FREE** / **BOXOPHOBIC** | Skybox の選択肢を広げ、見た目の印象を変えやすい |
 | **森や自然地形を作りたい** | **Pure Poly** | Free Low Poly Nature Pack の樹木・草・地形向けアセット |
-| **砂漠や岩場の地形を作りたい** | **Free Low Poly Desert Pack** | 砂漠バイオーム、岩、サボテン、荒野向けの low poly アセット |
 | **人間キャラを出したい** | **StylizedCharacter** | 剣士などのデフォルメキャラクターモデルと専用の武器 |
-| **動物・可愛いキャラを出したい** | **ithappy** | 犬、猫などの動物や、ポップで可愛らしいローポリキャラクター |
+| **動物・可愛いキャラを出したい** | **ithappy** / **Kenney Cube Pets** | 犬、猫などの手足のある動物や、四角くて可愛らしいキューブ型の動物モデル |
+| **キャラや物体をコミカルにしたい** | **Kenney Googly Eyes** | エージェントやオブジェクトに貼り付ける「動く目玉（Googly Eyes）」 |
 | **人型に自然な待機・歩行・走行をつけたい** | **Kevin Iglesias** / **DoubleL** | Human Basic Motions FREE と RPG Animations Pack FREE |
 | **走る・攻撃等の動きをつけたい** | **DoubleL** | 人間型キャラ向けの歩行、待機、攻撃、被弾、勝利アニメーション |
 | **火花、蒸気、軽い危険演出を足したい** | **SimpleFX** / **JMO Assets** | 蒸気、煙、火花、爆発、魔法風エフェクト |
@@ -31,12 +30,6 @@
 ---
 
 ## 1. 背景・環境アセット
-
-### Cosmic_Retro_Station_Props_FREE
-- **収録内容**: 端末、ロッカー、モニター、箱、机、壁面パネルなど、低ポリ寄りの SF 施設プロップ。
-- **活用方法**: 研究所、宇宙ステーション、制御室、搬送通路などを低コストで「任務っぽく」見せる時に使います。
-- **AI への依頼プロンプト例**
-  > 「`Cosmic_Retro_Station_Props_FREE` の制御パネル、ロッカー、箱を使って、搬送ルートの壁際に SF 研究所らしい密度感を追加してください。危険物の当たり判定は自前のシンプルな Collider を優先してください。」
 
 ### Polytope Studio (Lowpoly Environment)
 - **収録内容**: 中世ファンタジー風に特化したローポリゴンモデル群。木、草、岩、柵、木箱、樽などの自然物や小さな建物のプレハブが多数含まれます。
@@ -62,12 +55,6 @@
 - **AI への依頼プロンプト例**
   > 「`Pure Poly/Free Low Poly Nature Pack` を使って、木と草の密度を少し増やしつつ、移動経路は読みやすいまま残るように森ステージを装飾してください。」
 
-### Free Low Poly Desert Pack
-- **収録内容**: 砂漠地形、岩、サボテン、荒野の小物などの low poly 環境モデル。
-- **活用方法**: 乾いた雰囲気の追跡、逃走、長距離移動系のシナリオを見た目で差別化したい時に使います。
-- **AI への依頼プロンプト例**
-  > 「`Free Low Poly Desert Pack` を使って、砂地と岩場で構成された乾いたコースに置き換えてください。視認性が落ちないように障害物は少なめでお願いします。」
-
 ---
 
 ## 2. キャラクター・動物・アニメーション
@@ -83,6 +70,12 @@
 - **活用方法**: ペンギンや犬などの動物に学習させたい場合や、親しみやすいポップな雰囲気の動画を作りたい時に非常にマッチします。
 - **AI への依頼プロンプト例**
   > 「エージェントの見た目を `ithappy` の犬のモデルに差し替えてください。報酬ターゲット側は『骨』のモデル（もしあれば）にするか、色を変えたボールにしてください。」
+
+### Kenney Cube Pets & Googly Eyes
+- **収録内容**: 四角くて愛嬌のある様々な動物のモデル（Cube Pets）と、コミカルな目玉のパーツ（Googly Eyes）。すべてCC0の軽量アセット。
+- **活用方法**: 学習エージェントやターゲットを「可愛らしいキューブ動物」に差し替える時に最適です。Googly Eyesは、無機質な箱や障害物に貼り付けて「生き物やキャラクター」のように見せるためにも使えます。
+- **AI への依頼プロンプト例**
+  > 「主人公エージェントのモデルを単なる Box から `Kenney Cube Pets` のアライグマに変更してください。また、向かってくる障害物のキューブには `Kenney Googly Eyes` を貼り付けて顔のようにコミカルにしてください。」
 
 ### DoubleL (RPG Animations Pack)
 - **収録内容**: アニメーションクリップ（`.anim`）。待機（Idle）、歩行（Walk/Run）、攻撃（Attack）、被弾（Hit）、死亡（Death）、勝利姿勢（One Hand Up）など。
@@ -160,16 +153,12 @@
 
 ## 7. 組み合わせのコツ
 
-- `Cosmic_Retro_Station_Props_FREE` + `ithappy/Creative Characters` + `Kevin Iglesias` + `SimpleFX`
-  SF 研究所、搬送任務、潜入、危険区画突破に向きます。
 - `Polytope Studio` + `StylizedCharacter` + `DoubleL` + `JMO Assets`
   ファンタジー、遺跡、剣士、儀式、戦闘風の見せ場に向きます。
 - `ithappy/Animals_FREE` + `Polytope Studio` + `PrimeTween`
   かわいい動物系、障害物回避、配達、追いかけっこ系に向きます。
 - `Pure Poly/Free Low Poly Nature Pack` + `ithappy/Animals_FREE` + `Casual Game Sounds U6`
   森や自然環境の癒やし寄りシーンづくりに向きます。
-- `Free Low Poly Desert Pack` + `StylizedCharacter` + `UnityTechnologies/ParticlePack`
-  乾いた雰囲気のアクション寄りコースや、砂漠サバイバル風の見た目に向きます。
 - `Free Pack` + `_Tanks` + `JMO Assets`
   爆発音、重めの SE、派手なヒット演出をまとめて強化したい時に向きます。
 
