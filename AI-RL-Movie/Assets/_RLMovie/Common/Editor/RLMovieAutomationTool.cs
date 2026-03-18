@@ -14,11 +14,14 @@ namespace RLMovie.Editor
     {
         public sealed class Parameters
         {
-            [ToolParameter("Action to perform: create_golden_starter, create_scenario_scene, validate_current_scene, build_current_scene_for_colab.")]
+            [ToolParameter("Action to perform: create_scenario_starter, create_golden_starter (deprecated alias), create_scenario_scene, validate_current_scene, build_current_scene_for_colab.")]
             public string action { get; set; }
 
             [ToolParameter("Scenario name for starter creation or scene creation, such as MyScenario.", Required = false)]
             public string scenario_name { get; set; }
+
+            [ToolParameter("Starter kind for starter creation. Defaults to core.", Required = false, DefaultValue = "core")]
+            public string starter_kind { get; set; }
 
             [ToolParameter("When true, overwrite generated starter files if they already exist.", Required = false, DefaultValue = "false")]
             public bool? overwrite_existing { get; set; }
@@ -31,6 +34,7 @@ namespace RLMovie.Editor
         {
             string action = @params?["action"]?.ToString()?.Trim().ToLowerInvariant();
             string scenarioName = @params?["scenario_name"]?.ToString()?.Trim();
+            string starterKind = @params?["starter_kind"]?.ToString()?.Trim();
             bool overwriteExisting = @params?["overwrite_existing"]?.ToObject<bool?>() ?? false;
             bool logToConsole = @params?["log_to_console"]?.ToObject<bool?>() ?? true;
 
@@ -43,8 +47,9 @@ namespace RLMovie.Editor
             {
                 switch (action)
                 {
+                    case "create_scenario_starter":
                     case "create_golden_starter":
-                        return CreateGoldenStarter(scenarioName, overwriteExisting);
+                        return CreateScenarioStarter(scenarioName, starterKind, overwriteExisting, isDeprecatedAlias: action == "create_golden_starter");
                     case "create_scenario_scene":
                         return CreateScenarioScene(scenarioName);
                     case "validate_current_scene":
@@ -65,20 +70,28 @@ namespace RLMovie.Editor
             }
         }
 
-        private static object CreateGoldenStarter(string scenarioName, bool overwriteExisting)
+        private static object CreateScenarioStarter(string scenarioName, string starterKind, bool overwriteExisting, bool isDeprecatedAlias)
         {
             if (string.IsNullOrWhiteSpace(scenarioName))
             {
-                return new ErrorResponse("Parameter 'scenario_name' is required for create_golden_starter.");
+                return new ErrorResponse("Parameter 'scenario_name' is required for create_scenario_starter.");
             }
 
-            var result = CreateGoldenScenarioStarter.CreateStarterFilesForScenario(scenarioName, overwriteExisting);
+            string resolvedStarterKind = string.IsNullOrWhiteSpace(starterKind)
+                ? CoreScenarioStarterDefinition.StarterKindCore
+                : starterKind;
+
+            var result = CreateGoldenScenarioStarter.CreateStarterFilesForScenario(scenarioName, resolvedStarterKind, overwriteExisting);
             if (!result.Success)
             {
                 return new ErrorResponse(result.Message, result);
             }
 
-            return new SuccessResponse(result.Message, result);
+            string message = isDeprecatedAlias
+                ? $"{result.Message}\nDeprecated action used: create_golden_starter. Prefer create_scenario_starter."
+                : result.Message;
+
+            return new SuccessResponse(message, result);
         }
 
         private static object CreateScenarioScene(string scenarioName)

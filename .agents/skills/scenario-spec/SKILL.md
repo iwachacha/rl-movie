@@ -5,20 +5,36 @@ description: Design or revise an RL scenario contract before implementation. Use
 
 # Scenario Spec
 
-- 主モードは `Spec`
-- 先に `../../references/project-direction.md` と `../../references/manifest-contract.md` を読む
-- 選定済みの concept memo が `docs/ideas/` にあるなら、manifest を書く前に先に読む
-- 学習比較に関わる変更なら `../../references/experiment-rules.md` も読む
-- 録画前提の設計を含むなら `../../references/video-standard.md` も読む
-- `camera_plan` の中身や shot package まで設計するなら `../unity-rl-camera/SKILL.md` を先に読む
-- まず「視聴者が何を見て面白がるか」を 1 文で固定し、`viewer_promise`、`thumbnail_moment`、`visual_hooks` に落としてから RL の学習課題へ進む
-- V1 は 1 つの読みやすい学習ループに絞り、目的・危険・成功失敗が数秒で伝わる構成を優先する
-- 高品質化は複雑な agent 挙動より、環境、障害物、prop、camera、reset 演出で稼ぐ方を優先する
-- 外部 visual を使うなら無料 Unity Asset Store のみを前提にし、必要なら `../unity-free-asset-research/SKILL.md` で候補を固めてから仕様を閉じる
-- `viewer_promise`、`visual_hooks`、`thumbnail_moment`、`learning_goal`、成功条件、失敗条件、観測、行動、報酬、ランダム化、難易度、画作り、カメラ、受け入れ条件を実装前に固める
-- `Config/scenario_manifest.yaml` をシナリオ契約の正本として扱う
-- RL ロジックや学習条件を変えるなら、先に manifest を更新する
-- 比較実験を行うなら変更軸を 1 つに絞り、`baseline_run` と採用基準を先に決める
-- 学習比較は `1 run = 1 hypothesis` で扱う
-- asset の選定や導入方針まで論点になるなら `../asset-intake/SKILL.md` に引き継ぐ
-- 実装へ進むときは `../scenario-build/SKILL.md` に引き継ぐ
+- Primary mode: `Spec`
+- Read `../../references/project-direction.md`, `../../references/manifest-contract.md`, and `../../references/common-scenario-backbone.md`.
+- If the spec changes camera logic in a meaningful way, also read `../unity-rl-camera/SKILL.md`.
+- If visuals depend on external free assets, use `../unity-free-asset-research/SKILL.md`.
+
+## Common-First Rule
+
+- For a brand new learning scene, do not spec a one-off architecture first.
+- Start from the shared backbone and only introduce scenario-local systems where the common layer is clearly insufficient.
+- New starter kinds are downstream of shared-backbone maturity, not the default first step.
+
+## Required Output
+
+Every new scenario spec should explicitly include a short shared backbone plan:
+
+1. Which common systems will be reused as-is.
+2. Which common systems need extension or configuration.
+3. Which logic stays scenario-local.
+4. Which missing reusable gap should be solved in `Common` before or during build.
+
+## Spec Priorities
+
+- Keep `viewer_promise`, `visual_hooks`, `thumbnail_moment`, and `learning_goal` strong and specific.
+- Keep `1 run = 1 hypothesis`.
+- Keep the manifest as the viewer-facing contract, not as a dumping ground for implementation details.
+- Prefer stable role/team/camera concepts that fit the shared blueprint and recording flow.
+- When a requirement sounds reusable across future scenes, phrase it as a common-layer capability instead of a one-scene hack.
+
+## Handoff To Build
+
+- The spec handoff should make it obvious which shared components the builder must preserve.
+- If the scenario cannot fit the current common backbone, call that out directly before implementation.
+- Route implementation next through `../scenario-build/SKILL.md`.

@@ -5,22 +5,37 @@ description: Implement or modify RL scenarios in this repository. Use when creat
 
 # Scenario Build
 
-- 主モードは `Build`
-- 先に `../../references/manifest-contract.md` と `../../references/validation-build-gates.md` を読む
-- 学習比較まで見据える変更なら `../../references/experiment-rules.md` も読む
-- 新規シナリオは `../scenario-spec/SKILL.md` で `viewer_promise`、`visual_hooks`、`thumbnail_moment` を manifest に固めてから build に入る
-- 新規シナリオは `AI-RL-Movie/Assets/_RLMovie/Environments/<PascalCase>/` に作る
-- 必須フォルダは `Scenes/`、`Scripts/`、`Prefabs/`、`Config/`
-- 新規作成は Scene、Agent、training YAML、`scenario_manifest.yaml` の 4 点セットで始める
-- 新規作成はまず `RLMovie/Create Golden Scenario Starter Files` を使い、その後に生成された scene builder を実行する
-- `_Template` は generator の正本テンプレートであり、手コピー先として直接複製しない
-- 新しい Agent は `BaseRLAgent` を継承し、namespace は `RLMovie.Environments.<Scenario>` にする
-- `Behavior Name = Agent クラス名 = training YAML の behaviors キー = manifest の behavior_name` を保つ
-- `scenario_name = scene_name = Unity Scene 名 = シナリオフォルダ名` を保つ
-- 既存シナリオ改修では、RL 挙動を変える前に manifest と必要なら `spec_version` を更新する
-- RL ロジック変更と録画専用の見た目変更を同じ比較実験に混ぜない
-- シーン・Prefab・Material の変更は Unity Editor または UnityMCP で行う
-- UnityMCP 変更後は保存し、`Console` を確認する
-- `RLMovie > Validate Current Scenario` の前にはアクティブシーンを保存する
-- `Heuristic` の最低限確認が通るまでは学習へ進まない
-- 不具合切り分け起点なら `../scenario-fix/SKILL.md` も読む
+- Primary mode: `Build`
+- Read `../../references/manifest-contract.md`, `../../references/validation-build-gates.md`, and `../../references/common-scenario-backbone.md`.
+
+## Common-First Rule
+
+- For new learning scenes, reuse `_RLMovie/Common` before introducing new starters, archetype scaffolds, or one-off infrastructure.
+- Starter expansion is not the first move. First make the shared backbone more reusable if the gap is likely to recur.
+- If the work is a small scenario-local fix, do not genericize unrelated code just for the sake of abstraction.
+
+## Default Shared Systems
+
+- `scenario_manifest.yaml` for the viewer-facing contract.
+- `scenario_blueprint.yaml` for common wiring, roles, teams, cameras, overlay, highlight, and recording defaults.
+- `BaseRLAgent` for agent lifecycle, telemetry, reward tracking, and heuristic support.
+- `ScenarioGoldenSpine` for shared references and role binding.
+- `RecordingHelper`, `ScenarioBroadcastOverlay`, `ScenarioHighlightTracker`, and `TrainingVisualizer` for viewer readability and capture flow.
+- `EnvironmentManager` for simple environment bounds and spawn randomization.
+- `ScenarioValidator`, `Build for Colab`, and `Import Trained Model` as the default validation and train/import path.
+
+## Build Workflow
+
+1. State the shared backbone plan before editing.
+2. Reuse or extend the common layer where the pattern is likely to recur.
+3. Keep scenario-specific gameplay and tuning under `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/`.
+4. Keep shared runtime/editor/asset changes under `AI-RL-Movie/Assets/_RLMovie/Common/`.
+5. Validate with `RLMovie/Validate Current Scenario`.
+6. If relevant, check heuristic play and then use `RLMovie/Build for Colab (Current Scene)`.
+7. Use `RLMovie/Import Trained Model` for adoption rather than a custom import path.
+
+## Escalation
+
+- If a requested scene cannot cleanly fit the current common backbone, do not jump straight to a new starter pattern.
+- First identify the missing reusable capability and decide whether it belongs in `Common` or only in that scenario.
+- Only propose or implement a new starter kind after the shared layer has been tightened enough that multiple future scenes would benefit.

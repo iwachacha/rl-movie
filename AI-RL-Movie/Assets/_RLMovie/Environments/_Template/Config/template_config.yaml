@@ -1,4 +1,4 @@
-# ML-Agents training config for the Golden Spine starter.
+# ML-Agents training config for the V2 common starter.
 # Start here, then adapt rewards, curriculum, and network size for the real scenario.
 #
 # Usage:
@@ -8,7 +8,7 @@
 #   !mlagents-learn /content/config.yaml --run-id=<scenario_run_id> --no-graphics
 
 behaviors:
-  TemplateAgent:
+  __BEHAVIOR_NAME__:
     trainer_type: ppo
 
     hyperparameters:
@@ -44,7 +44,7 @@ behaviors:
 #       - name: StableStart
 #         completion_criteria:
 #           measure: reward
-#           behavior: TemplateAgent
+#           behavior: __BEHAVIOR_NAME__
 #           min_lesson_length: 100
 #           threshold: 0.5
 #         value: 0.2

@@ -1,0 +1,51 @@
+version: 3
+agents:
+  - role: hero
+    class: __AGENT_CLASS__
+    behavior: __BEHAVIOR_NAME__
+    team: solo
+    primary: true
+scene_roles:
+  arena_root: EnvironmentRoot
+  primary_target: PrimaryTarget
+  primary_hazard: ""
+  overlay_anchor: OverlayAnchor
+camera_roles:
+  default_camera: ExplainView
+  explain: ExplainView
+  wide_a: WideA
+  wide_b: WideB
+  follow_optional: FollowView
+  comparison_optional: ""
+recording_defaults:
+  hide_training_ui: true
+  enable_camera_switching: true
+  camera_switch_interval: 9.0
+  camera_cycle_roles:
+    - explain
+    - wide_a
+    - wide_b
+    - follow_optional
+  follow_camera_role: follow_optional
+  follow_target_role: hero
+  follow_target_team: solo
+overlay_bindings:
+  target_agent_role: hero
+  target_agent_roles:
+    - hero
+  target_agent_team: solo
+  objective_source: viewer_promise
+  scenario_label_source: scenario_name
+highlight_bindings:
+  tracked_agent_role: hero
+  tracked_agent_roles:
+    - hero
+  tracked_agent_team: solo
+  export_highlights_to_jsonl: true
+  export_snapshots_to_jsonl: true
+visual_defaults:
+  apply_readability_kit: true
+  hero_material: V2HeroReadable
+  target_material: V2TargetReadable
+  hazard_material: V2HazardReadable
+  floor_material: V2FloorReadable

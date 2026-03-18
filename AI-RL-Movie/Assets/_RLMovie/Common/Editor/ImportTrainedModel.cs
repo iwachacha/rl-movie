@@ -1,37 +1,33 @@
-using UnityEngine;
-using UnityEditor;
-using UnityEngine.SceneManagement;
-using UnityEditor.SceneManagement;
-using Unity.InferenceEngine;
-using Unity.MLAgents.Policies;
 using System;
 using System.IO;
 using System.Linq;
+using Unity.InferenceEngine;
+using Unity.MLAgents.Policies;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace RLMovie.Editor
 {
     /// <summary>
-    /// 学習済みモデルを Unity に取り込むエディタメニュー。
-    /// メニュー: RLMovie > Import Trained Model
-    /// 
-    /// Google Drive からダウンロードした .onnx ファイルを選択すると:
-    /// 1. StreamingAssets にコピー
-    /// 2. 現在シーンの manifest `behavior_name` と一致する BehaviorParameters にモデルを割り当てる
-    /// 3. 対象エージェントの Behavior Type を Inference Only に変更する
+    /// Imports a trained ONNX model into StreamingAssets and assigns it to the active scene's target behavior.
+    /// Menu: RLMovie > Import Trained Model
     /// </summary>
     public static class ImportTrainedModel
     {
         [MenuItem("RLMovie/Import Trained Model")]
         public static void Import()
         {
-            // ファイル選択ダイアログ
             string modelPath = EditorUtility.OpenFilePanel(
-                "学習済みモデル (.onnx) を選択",
-                "",
+                "Import Trained Model (.onnx)",
+                string.Empty,
                 "onnx");
 
             if (string.IsNullOrEmpty(modelPath))
+            {
                 return;
+            }
 
             if (!TryResolveImportTargets(
                     out string sceneName,
@@ -44,38 +40,36 @@ namespace RLMovie.Editor
             }
 
             string modelFileName = Path.GetFileName(modelPath);
-
-            // StreamingAssets にコピー
             string streamingAssetsDir = Application.streamingAssetsPath;
             if (!Directory.Exists(streamingAssetsDir))
+            {
                 Directory.CreateDirectory(streamingAssetsDir);
+            }
 
-            string destPath = Path.Combine(streamingAssetsDir, modelFileName);
-            File.Copy(modelPath, destPath, true);
-            Debug.Log($"📥 Model copied to: {destPath}");
+            string destinationPath = Path.Combine(streamingAssetsDir, modelFileName);
+            File.Copy(modelPath, destinationPath, true);
+            Debug.Log($"[ImportTrainedModel] Model copied to: {destinationPath}");
 
-            // Unity のアセットとしてリフレッシュ
             string assetPath = "Assets/StreamingAssets/" + modelFileName;
             AssetDatabase.ImportAsset(assetPath, ImportAssetOptions.ForceUpdate);
             AssetDatabase.Refresh();
-            var modelAsset = AssetDatabase.LoadAssetAtPath<ModelAsset>(assetPath);
+
+            ModelAsset modelAsset = AssetDatabase.LoadAssetAtPath<ModelAsset>(assetPath);
             if (modelAsset == null)
             {
                 EditorUtility.DisplayDialog(
                     "Import Failed",
-                    $"モデルアセットの読み込みに失敗しました。\n\nAsset: {assetPath}",
+                    $"Failed to load the imported model asset.\n\nAsset: {assetPath}",
                     "OK");
                 return;
             }
 
-            Debug.Log($"✅ Model imported: {assetPath}");
-
-            foreach (var bp in targetBehaviorParams)
+            foreach (BehaviorParameters behaviorParameters in targetBehaviorParams)
             {
-                bp.Model = modelAsset;
-                bp.BehaviorType = BehaviorType.InferenceOnly;
-                EditorUtility.SetDirty(bp);
-                Debug.Log($"🧠 {bp.gameObject.name}: Model → {modelFileName}, Behavior Type → Inference Only");
+                behaviorParameters.Model = modelAsset;
+                behaviorParameters.BehaviorType = BehaviorType.InferenceOnly;
+                EditorUtility.SetDirty(behaviorParameters);
+                Debug.Log($"[ImportTrainedModel] {behaviorParameters.gameObject.name}: Model={modelFileName}, BehaviorType=InferenceOnly");
             }
 
             EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
@@ -83,15 +77,9 @@ namespace RLMovie.Editor
             Selection.activeObject = modelAsset;
 
             string agentNames = string.Join(", ", targetBehaviorParams.Select(bp => bp.gameObject.name));
-
-            EditorUtility.DisplayDialog("Import Complete",
-                $"✅ モデルのインポートが完了しました！\n\n" +
-                $"🎬 シーン: {sceneName}\n" +
-                $"🏷️ Behavior: {behaviorName}\n" +
-                $"📄 モデル: {modelFileName}\n" +
-                $"🤖 エージェント: {agentNames}\n" +
-                $"   → Model を割り当て、Behavior Type を Inference Only に変更済み\n\n" +
-                "シーンは変更済みで dirty 状態です。内容を確認して保存したあと、Play で動作確認してください。",
+            EditorUtility.DisplayDialog(
+                "Import Complete",
+                $"Model import finished.\n\nScene: {sceneName}\nBehavior: {behaviorName}\nModel: {modelFileName}\nAgents: {agentNames}\n\nThe matching agents were switched to Inference Only.",
                 "OK");
         }
 
@@ -108,31 +96,49 @@ namespace RLMovie.Editor
 
             if (string.IsNullOrEmpty(activeScene.path))
             {
-                errorMessage = "シーンが未保存です。Import Trained Model の前にシーンを保存してください。";
+                errorMessage = "The active scene is unsaved. Save the scene before importing a trained model.";
                 return false;
             }
 
-            string projectRoot = Path.GetDirectoryName(Application.dataPath);
-            string manifestPath = Path.Combine(projectRoot, "Assets/_RLMovie/Environments", sceneName, "Config", "scenario_manifest.yaml");
+            ScenarioConfigPaths paths;
+            try
+            {
+                paths = ScenarioConfigIO.ResolveScenarioPaths(activeScene);
+            }
+            catch (Exception ex)
+            {
+                errorMessage = ex.Message;
+                return false;
+            }
+
+            string manifestPath = paths.ManifestPath;
             if (!File.Exists(manifestPath))
             {
-                errorMessage =
-                    "現在シーンの scenario_manifest.yaml が見つかりません。\n\n"
-                    + $"Expected: {manifestPath}";
+                errorMessage = $"scenario_manifest.yaml was not found for the active scene.\n\nExpected: {manifestPath}";
                 return false;
             }
 
-            behaviorName = ReadTopLevelScalar(manifestPath, "behavior_name");
+            ScenarioManifestData manifest;
+            try
+            {
+                manifest = ScenarioConfigIO.LoadManifest(manifestPath);
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"Failed to read the scenario manifest.\n\n{ex.Message}";
+                return false;
+            }
+
+            behaviorName = manifest.BehaviorName;
             if (string.IsNullOrWhiteSpace(behaviorName))
             {
-                errorMessage = "manifest の `behavior_name` が空です。対象エージェントを特定できません。";
+                errorMessage = "manifest.behavior_name is empty. Set the target behavior before importing a model.";
                 return false;
             }
 
             string targetBehaviorName = behaviorName;
-
             targetBehaviorParams = UnityEngine.Object.FindObjectsByType<BehaviorParameters>(FindObjectsSortMode.None)
-                .Where(bp => bp.gameObject.scene == activeScene)
+                .Where(bp => bp != null && bp.gameObject.scene == activeScene)
                 .Where(bp => bp.GetComponent<RLMovie.Common.BaseRLAgent>() != null)
                 .Where(bp => string.Equals(bp.BehaviorName, targetBehaviorName, StringComparison.Ordinal))
                 .ToArray();
@@ -142,14 +148,14 @@ namespace RLMovie.Editor
                 string availableBehaviorNames = string.Join(
                     ", ",
                     UnityEngine.Object.FindObjectsByType<BehaviorParameters>(FindObjectsSortMode.None)
-                        .Where(bp => bp.gameObject.scene == activeScene)
+                        .Where(bp => bp != null && bp.gameObject.scene == activeScene)
                         .Where(bp => bp.GetComponent<RLMovie.Common.BaseRLAgent>() != null)
                         .Select(bp => bp.BehaviorName)
                         .Distinct(StringComparer.Ordinal)
                         .OrderBy(name => name, StringComparer.Ordinal));
 
                 errorMessage =
-                    "manifest の `behavior_name` と一致する BehaviorParameters が現在シーンに見つかりません。\n\n"
+                    "No agent in the active scene matches manifest.behavior_name.\n\n"
                     + $"Scene: {sceneName}\n"
                     + $"behavior_name: {behaviorName}\n"
                     + $"Available: {availableBehaviorNames}";
@@ -158,28 +164,6 @@ namespace RLMovie.Editor
 
             errorMessage = string.Empty;
             return true;
-        }
-
-        private static string ReadTopLevelScalar(string filePath, string key)
-        {
-            foreach (string line in File.ReadLines(filePath))
-            {
-                if (string.IsNullOrWhiteSpace(line) || char.IsWhiteSpace(line[0]))
-                {
-                    continue;
-                }
-
-                string trimmed = line.Trim();
-                if (!trimmed.StartsWith($"{key}:", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                string value = trimmed.Substring(key.Length + 1).Trim();
-                return value.Trim('"', '\'');
-            }
-
-            return string.Empty;
         }
     }
 }

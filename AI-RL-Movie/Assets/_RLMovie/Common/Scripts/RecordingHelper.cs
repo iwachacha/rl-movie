@@ -25,13 +25,23 @@ namespace RLMovie.Common
         [SerializeField] private bool keepCameraAlignedWhileRecording = true;
 
         [Header("=== Camera Presets ===")]
-        [SerializeField] private Transform[] cameraPositions;
+        [SerializeField] private ScenarioGoldenSpine scenarioSpine;
+        [SerializeField] private string defaultCameraRole = "default_camera";
+        [SerializeField] private string[] cameraCycleRoles = Array.Empty<string>();
+        [SerializeField] private string[] knownCameraRoleNames = Array.Empty<string>();
+        [SerializeField] private Transform[] legacyCameraPositions;
 
         [SerializeField] private float cameraSwitchInterval = 10f;
 
         [Header("=== Dynamic Follow Cut ===")]
-        [Tooltip("Recording cut index that should behave as a dynamic follow shot. Set to -1 to disable.")]
-        [SerializeField] private int followCameraIndex = -1;
+        [Tooltip("Recording cut role that should behave as a dynamic follow shot. Leave empty to disable role-based follow.")]
+        [SerializeField] private string followCameraRole = "follow_optional";
+
+        [Tooltip("Agent role to follow when role-based spine bindings are available.")]
+        [SerializeField] private string followTargetRole = "hero";
+
+        [Tooltip("Fallback team to follow when no specific followTargetRole resolves.")]
+        [SerializeField] private string followTargetTeam = string.Empty;
 
         [SerializeField] private Transform followTarget;
 
@@ -135,7 +145,8 @@ namespace RLMovie.Common
             }
 
             if (!enableCameraSwitching || !_isRecording) return;
-            if (cameraPositions == null || cameraPositions.Length <= 1) return;
+            Transform[] activeSequence = GetActiveCameraSequence();
+            if (activeSequence.Length <= 1) return;
 
             if (Time.realtimeSinceStartup >= _nextCameraSwitchAtRealtime)
             {
@@ -191,21 +202,23 @@ namespace RLMovie.Common
 
         public void NextCamera()
         {
-            if (cameraPositions == null || cameraPositions.Length == 0) return;
-
             CacheSceneReferences();
             if (_mainCamera == null) return;
 
-            _currentCamIdx = (_currentCamIdx + 1) % cameraPositions.Length;
+            Transform[] activeSequence = GetActiveCameraSequence();
+            if (activeSequence.Length == 0) return;
+
+            _currentCamIdx = (_currentCamIdx + 1) % activeSequence.Length;
             ApplyCurrentViewPose(immediate: true);
         }
 
         public void SetCamera(int index)
         {
-            if (cameraPositions == null || index < 0 || index >= cameraPositions.Length) return;
-
             CacheSceneReferences();
             if (_mainCamera == null) return;
+
+            Transform[] activeSequence = GetActiveCameraSequence();
+            if (index < 0 || index >= activeSequence.Length) return;
 
             _currentCamIdx = index;
             ApplyCurrentViewPose(immediate: true);
@@ -362,9 +375,34 @@ namespace RLMovie.Common
                 _mainCamera = Camera.main;
             }
 
+            if (_goldenSpine == null && scenarioSpine != null)
+            {
+                _goldenSpine = scenarioSpine;
+            }
+
             if (_goldenSpine == null)
             {
                 _goldenSpine = GetComponentInParent<ScenarioGoldenSpine>();
+            }
+
+            if (followTarget == null && _goldenSpine != null && !string.IsNullOrWhiteSpace(followTargetRole))
+            {
+                if (_goldenSpine.TryGetAgentRole(followTargetRole, out BaseRLAgent agent) && agent != null)
+                {
+                    followTarget = agent.transform;
+                }
+                else if (_goldenSpine.TryGetSceneRole(followTargetRole, out Transform roleTransform) && roleTransform != null)
+                {
+                    followTarget = roleTransform;
+                }
+            }
+
+            if (followTarget == null && _goldenSpine != null && !string.IsNullOrWhiteSpace(followTargetTeam))
+            {
+                if (_goldenSpine.TryGetPrimaryAgentForTeam(followTargetTeam, out BaseRLAgent teamAgent) && teamAgent != null)
+                {
+                    followTarget = teamAgent.transform;
+                }
             }
         }
 
@@ -374,7 +412,7 @@ namespace RLMovie.Common
             ClearTemporaryBlackout();
             RestoreAllGhostedRenderers();
 
-            Transform defaultView = _goldenSpine != null ? _goldenSpine.DefaultCameraView : null;
+            Transform defaultView = GetDefaultCameraView();
             if (defaultView == null) return;
 
             ApplyCamera(defaultView);
@@ -426,12 +464,13 @@ namespace RLMovie.Common
 
         private Transform GetActiveCamera()
         {
-            if (cameraPositions == null || _currentCamIdx < 0 || _currentCamIdx >= cameraPositions.Length)
+            Transform[] activeSequence = GetActiveCameraSequence();
+            if (_currentCamIdx < 0 || _currentCamIdx >= activeSequence.Length)
             {
                 return null;
             }
 
-            return cameraPositions[_currentCamIdx];
+            return activeSequence[_currentCamIdx];
         }
 
         private bool IsFollowPreviewActive()
@@ -492,7 +531,9 @@ namespace RLMovie.Common
                 return true;
             }
 
-            return followCameraIndex >= 0 && cameraIndex == followCameraIndex;
+            string currentRole = GetCameraRoleForIndex(cameraIndex);
+            return !string.IsNullOrWhiteSpace(followCameraRole)
+                && string.Equals(currentRole, followCameraRole, StringComparison.Ordinal);
         }
 
         private bool TryGetFollowSettings(int cameraIndex, out FollowCameraProfile followProfile)
@@ -502,7 +543,9 @@ namespace RLMovie.Common
                 return true;
             }
 
-            if (followCameraIndex >= 0 && cameraIndex == followCameraIndex)
+            string currentRole = GetCameraRoleForIndex(cameraIndex);
+            if (!string.IsNullOrWhiteSpace(followCameraRole) &&
+                string.Equals(currentRole, followCameraRole, StringComparison.Ordinal))
             {
                 followProfile = FollowCameraProfile.Create(
                     cameraIndex,
@@ -515,6 +558,66 @@ namespace RLMovie.Common
 
             followProfile = default;
             return false;
+        }
+
+        private Transform GetDefaultCameraView()
+        {
+            CacheSceneReferences();
+            if (_goldenSpine != null && !string.IsNullOrWhiteSpace(defaultCameraRole))
+            {
+                if (_goldenSpine.TryGetCameraRole(defaultCameraRole, out Transform anchor) && anchor != null)
+                {
+                    return anchor;
+                }
+            }
+
+            Transform[] fallbackSequence = GetFallbackLegacyCameraPositions();
+            return fallbackSequence.Length > 0 ? fallbackSequence[0] : null;
+        }
+
+        private Transform[] GetActiveCameraSequence()
+        {
+            CacheSceneReferences();
+
+            if (_goldenSpine != null && cameraCycleRoles != null && cameraCycleRoles.Length > 0)
+            {
+                var resolved = new List<Transform>();
+                for (int i = 0; i < cameraCycleRoles.Length; i++)
+                {
+                    string role = cameraCycleRoles[i];
+                    if (string.IsNullOrWhiteSpace(role))
+                    {
+                        continue;
+                    }
+
+                    if (_goldenSpine.TryGetCameraRole(role, out Transform anchor) && anchor != null)
+                    {
+                        resolved.Add(anchor);
+                    }
+                }
+
+                if (resolved.Count > 0)
+                {
+                    return resolved.ToArray();
+                }
+            }
+
+            return GetFallbackLegacyCameraPositions();
+        }
+
+        private Transform[] GetFallbackLegacyCameraPositions()
+        {
+            return legacyCameraPositions ?? Array.Empty<Transform>();
+        }
+
+        private string GetCameraRoleForIndex(int cameraIndex)
+        {
+            if (cameraIndex < 0 || cameraCycleRoles == null || cameraIndex >= cameraCycleRoles.Length)
+            {
+                return string.Empty;
+            }
+
+            return cameraCycleRoles[cameraIndex] ?? string.Empty;
         }
 
         private bool TryGetConfiguredFollowProfile(int cameraIndex, out FollowCameraProfile followProfile)

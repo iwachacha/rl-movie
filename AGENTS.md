@@ -14,6 +14,7 @@ Use `.agents` only for repository-specific work in `c:\rl-movie`.
 - Default to compact output: report outcomes, validation, blockers, and required decisions first.
 - Skip code walkthroughs and implementation narration unless the user asks for them or they affect risk.
 - Ask for user input only when a material decision cannot be resolved safely from repo context.
+- For new learning scenes, default to a common-first architecture: reuse and strengthen `_RLMovie/Common` before creating new starter kinds, archetype scaffolds, or one-off scene infrastructure.
 
 ## Local Skills
 - `agents-maintenance`: edit `AGENTS.md`, `.agents/`, skill layout, or instruction architecture.

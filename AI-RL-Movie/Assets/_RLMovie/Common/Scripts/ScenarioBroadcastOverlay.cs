@@ -13,6 +13,9 @@ namespace RLMovie.Common
         [Header("=== Overlay References ===")]
         [SerializeField] private BaseRLAgent targetAgent;
         [SerializeField] private ScenarioHighlightTracker highlightTracker;
+        [SerializeField] private string targetAgentRole = "hero";
+        [SerializeField] private string[] targetAgentRoles = System.Array.Empty<string>();
+        [SerializeField] private string targetAgentTeam = string.Empty;
 
         [Header("=== Labels ===")]
         [SerializeField] private string scenarioLabel = "Scenario";
@@ -284,7 +287,43 @@ namespace RLMovie.Common
 
             if (targetAgent == null)
             {
-                targetAgent = spine.PrimaryAgent;
+                BaseRLAgent resolvedAgent;
+                if (!string.IsNullOrWhiteSpace(targetAgentRole)
+                    && spine.TryGetAgentRole(targetAgentRole, out resolvedAgent)
+                    && resolvedAgent != null)
+                {
+                    targetAgent = resolvedAgent;
+                }
+                else if (targetAgentRoles != null && targetAgentRoles.Length > 0)
+                {
+                    for (int i = 0; i < targetAgentRoles.Length; i++)
+                    {
+                        string role = targetAgentRoles[i];
+                        if (string.IsNullOrWhiteSpace(role))
+                        {
+                            continue;
+                        }
+
+                        if (spine.TryGetAgentRole(role, out resolvedAgent) && resolvedAgent != null)
+                        {
+                            targetAgent = resolvedAgent;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetAgent == null
+                    && !string.IsNullOrWhiteSpace(targetAgentTeam)
+                    && spine.TryGetPrimaryAgentForTeam(targetAgentTeam, out resolvedAgent)
+                    && resolvedAgent != null)
+                {
+                    targetAgent = resolvedAgent;
+                }
+
+                if (targetAgent == null)
+                {
+                    targetAgent = spine.PrimaryAgent;
+                }
             }
 
             if (highlightTracker == null)

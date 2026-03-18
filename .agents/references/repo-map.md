@@ -1,33 +1,47 @@
 # RL Movie Repo Map
 
-## 主な作業領域
+## 主要ディレクトリ
 
 - `AI-RL-Movie/Assets/_RLMovie/`
-  - `Common/`: 共通コードと editor utilities。`BaseRLAgent`、`ScenarioValidator`、`BuildForColab`、`ImportTrainedModel`、`TrainingVisualizer`、`RecordingHelper`
-  - `Environments/<Scenario>/`: シナリオ固有の `Scenes/`、`Scripts/`、`Prefabs/`、`Config/`
-  - `Environments/_Template/`: `Create Golden Scenario Starter Files` が参照する正本テンプレート。手コピー元ではなく generator source
-  - `Recording/`: Recorder 設定
-- `Notebooks/rl_movie_training.ipynb`: Colab 学習 notebook
-- `RunArchive/`: 返却済み training artifact と採用判断の保存先
-- `.agents/`: AI 向け instruction 正本
+  - `Common/`: 共通コードと editor utilities
+  - `Environments/<Scenario>/`: 各シナリオ本体
+  - `Environments/_Template/`: V2 共通スターターの generator source
+  - `Recording/`: Recorder 関連
+- `RunArchive/`: 学習 artifacts と採用判断
+- `.agents/`: repo 専用 instruction
 - `docs/`: 人向け補助資料
 
-## 契約と入口
+## V2 共通スターターの流れ
 
-- コンセプト handoff の入口: `docs/ideas/*.md`
-- シナリオ契約の入口: `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/Config/scenario_manifest.yaml`
-- 新規シナリオ作成の入口: concept memo or `scenario-spec` で viewer-facing contract を固める → `RLMovie/Create Golden Scenario Starter Files` → 生成された `Create <Scenario> Scene`
-- 学習用 build / validator / import の入口:
+- 入口:
+  - `RLMovie/Create Scenario Starter Files`
+  - 旧 `Create Golden Scenario Starter Files` は deprecated alias
+- 生成物:
+  - `scenario_manifest.yaml`
+  - `scenario_blueprint.yaml`
+  - training YAML
+  - Agent stub
+  - SceneBuilder stub
+- Scene 作成:
+  - `RLMovie/Create <Scenario> Scene`
+
+## 契約と品質ゲート
+
+- viewer-facing 契約:
+  - `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/Config/scenario_manifest.yaml`
+- common wiring 契約:
+  - `AI-RL-Movie/Assets/_RLMovie/Environments/<Scenario>/Config/scenario_blueprint.yaml`
+- validator / build / import:
   - `AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs`
   - `AI-RL-Movie/Assets/_RLMovie/Common/Editor/BuildForColab.cs`
   - `AI-RL-Movie/Assets/_RLMovie/Common/Editor/ImportTrainedModel.cs`
 
-## 生成物 / 取込物
+## 共通 visual kit
 
-- `AI-RL-Movie/ColabBuilds/`: `Build for Colab` の生成物
-- `AI-RL-Movie/Assets/StreamingAssets/*.onnx`: import した学習済みモデル
+- `AI-RL-Movie/Assets/_RLMovie/Common/Materials/`
+- `AI-RL-Movie/Assets/_RLMovie/Common/Prefabs/`
 
-## 既定で避ける場所
+## 通常は読まなくていい場所
 
 - `AI-RL-Movie/Assets/ThirdParty/`
 - `AI-RL-Movie/Assets/ML-Agents/`

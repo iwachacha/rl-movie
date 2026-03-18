@@ -4,7 +4,7 @@ using UnityEngine;
 namespace RLMovie.Editor
 {
     /// <summary>
-    /// Builds the starter scene for __SCENARIO_NAME__ after the generated files compile.
+    /// Builds the V2 starter scene for __SCENARIO_NAME__ after the generated files compile.
     /// </summary>
     public static class __SCENARIO_NAME__SceneBuilder
     {
@@ -15,13 +15,13 @@ namespace RLMovie.Editor
 
             EditorUtility.DisplayDialog(
                 "__SCENARIO_NAME__ Scene",
-                "Starter scene created.\n\nNext step:\nCustomize the generated agent, scene visuals, and manifest for the real scenario contract.",
+                "V2 starter scene created.\n\nNext step:\nCustomize the archetype-specific scene logic while keeping the shared blueprint and backbone intact.",
                 "OK");
         }
 
         public static string CreateSceneSilently()
         {
-            GoldenScenarioSceneBuilder.CreateStarterScene<RLMovie.Environments.__SCENARIO_NAME__.__AGENT_CLASS__>(
+            CoreScenarioStarterDefinition.CreateStarterScene<RLMovie.Environments.__SCENARIO_NAME__.__AGENT_CLASS__>(
                 "__SCENE_PATH__",
                 "__BEHAVIOR_NAME__",
                 13,
@@ -29,19 +29,15 @@ namespace RLMovie.Editor
                 (context, agent) =>
                 {
                     var agentSo = new SerializedObject(agent);
-                    agentSo.FindProperty("goal").objectReferenceValue = context.Goal;
-                    agentSo.FindProperty("envManager").objectReferenceValue = context.EnvironmentManager;
+                    agentSo.FindProperty("primaryTarget").objectReferenceValue = context.PrimaryTarget;
+                    agentSo.FindProperty("environmentManager").objectReferenceValue = context.EnvironmentManager;
                     agentSo.FindProperty("moveForce").floatValue = 1.0f;
-                    agentSo.FindProperty("goalDistance").floatValue = 1.25f;
-                    agentSo.FindProperty("startPosition").vector3Value = new Vector3(0f, 0.5f, 0f);
+                    agentSo.FindProperty("interactionRadius").floatValue = 1.35f;
+                    agentSo.FindProperty("startPosition").vector3Value = new Vector3(0f, 1.0f, 0f);
                     agentSo.ApplyModifiedProperties();
-
-                    var overlaySo = new SerializedObject(context.BroadcastOverlay);
-                    overlaySo.FindProperty("goalDescription").stringValue = "Reach the goal before falling off the platform.";
-                    overlaySo.ApplyModifiedProperties();
                 });
 
-            Debug.Log("Created the golden starter scene for __SCENARIO_NAME__ at __SCENE_PATH__");
+            Debug.Log("Created the V2 starter scene for __SCENARIO_NAME__ at __SCENE_PATH__");
             return "__SCENE_PATH__";
         }
     }

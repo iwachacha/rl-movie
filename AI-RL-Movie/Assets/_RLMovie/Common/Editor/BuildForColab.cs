@@ -45,6 +45,8 @@ namespace RLMovie.Editor
 
             public string ManifestPath { get; set; }
 
+            public string BlueprintPath { get; set; }
+
             public string[] YamlFiles { get; set; } = Array.Empty<string>();
 
             public StandaloneBuildSubtarget UsedSubtarget { get; set; }
@@ -87,8 +89,8 @@ namespace RLMovie.Editor
                 return Fail(behaviorTypeError, interactive);
             }
 
-            string sceneName = activeScene.name;
-            return Build(sceneName, new[] { activeScene.path }, interactive);
+            ScenarioConfigPaths paths = ScenarioConfigIO.ResolveScenarioPaths(activeScene);
+            return Build(paths, new[] { activeScene.path }, interactive);
         }
 
         [MenuItem("RLMovie/Build All Scenes for Colab")]
@@ -142,13 +144,14 @@ namespace RLMovie.Editor
                 "OK");
         }
 
-        private static ColabBuildResult Build(string sceneName, string[] scenePaths, bool interactive)
+        private static ColabBuildResult Build(ScenarioConfigPaths paths, string[] scenePaths, bool interactive)
         {
-            string projectRoot = Path.GetDirectoryName(Application.dataPath);
-            if (!TryResolveScenarioFiles(projectRoot, sceneName, out string configDir, out string manifestPath, out string[] yamlFiles, out string errorMessage))
+            string sceneName = paths.SceneName;
+            string projectRoot = paths.ProjectRoot;
+            if (!TryResolveScenarioFiles(paths, out string configDir, out string manifestPath, out string blueprintPath, out string[] yamlFiles, out string errorMessage))
             {
                 Debug.LogError($"[BuildForColab] ❌ {sceneName}: {errorMessage}");
-                return Fail(errorMessage, interactive, sceneName, manifestPath, yamlFiles);
+                return Fail(errorMessage, interactive, sceneName, manifestPath, blueprintPath, yamlFiles);
             }
 
             string buildDir = Path.Combine(projectRoot, BuildRootDir, sceneName);
@@ -162,6 +165,7 @@ namespace RLMovie.Editor
                     interactive,
                     sceneName,
                     manifestPath,
+                    blueprintPath,
                     yamlFiles);
             }
 
@@ -172,6 +176,7 @@ namespace RLMovie.Editor
                     interactive,
                     sceneName,
                     manifestPath,
+                    blueprintPath,
                     yamlFiles);
             }
 
@@ -194,6 +199,7 @@ namespace RLMovie.Editor
                             interactive,
                             sceneName,
                             manifestPath,
+                            blueprintPath,
                             yamlFiles);
                     }
 
@@ -202,6 +208,7 @@ namespace RLMovie.Editor
                         interactive,
                         sceneName,
                         manifestPath,
+                        blueprintPath,
                         yamlFiles);
                 }
 
@@ -214,6 +221,7 @@ namespace RLMovie.Editor
                         interactive,
                         sceneName,
                         manifestPath,
+                        blueprintPath,
                         yamlFiles);
                 }
 
@@ -221,7 +229,7 @@ namespace RLMovie.Editor
                 Debug.Log($"[BuildForColab] Build subtarget: {ColabSubtarget}");
 
                 EditorUtility.DisplayProgressBar("Building for Colab", "Copying scenario files...", 0.7f);
-                CopyScenarioFiles(sceneName, buildDir, configDir, manifestPath, yamlFiles, trainingRequirementsPath);
+                CopyScenarioFiles(sceneName, buildDir, configDir, manifestPath, blueprintPath, yamlFiles, trainingRequirementsPath);
 
                 EditorUtility.DisplayProgressBar("Building for Colab", "Creating ZIP package...", 0.9f);
                 Directory.CreateDirectory(uploadDir);
@@ -249,7 +257,7 @@ namespace RLMovie.Editor
             Debug.Log($"[BuildForColab] 📁 Upload this ZIP to Google Drive: RL-Movie/Builds/");
 
             string modeSummary = "Dedicated Server";
-            string message = $"✅ {sceneName} のビルドが完了しました\n\nMode: {modeSummary}\nZIP: {Path.GetFullPath(zipPath)} ({zipSizeMB} MB)\nmanifest: {Path.GetFileName(manifestPath)}\nYAML: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}";
+            string message = $"✅ {sceneName} のビルドが完了しました\n\nMode: {modeSummary}\nZIP: {Path.GetFullPath(zipPath)} ({zipSizeMB} MB)\nmanifest: {Path.GetFileName(manifestPath)}\nblueprint: {Path.GetFileName(blueprintPath)}\nYAML: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}";
             if (interactive)
             {
                 EditorUtility.DisplayDialog("Build Complete", message, "OK");
@@ -263,6 +271,7 @@ namespace RLMovie.Editor
                 ExecutablePath = executablePath,
                 ZipPath = zipPath,
                 ManifestPath = manifestPath,
+                BlueprintPath = blueprintPath,
                 YamlFiles = yamlFiles,
                 UsedSubtarget = ColabSubtarget,
                 Message = message
@@ -310,16 +319,16 @@ namespace RLMovie.Editor
         }
 
         private static bool TryResolveScenarioFiles(
-            string projectRoot,
-            string sceneName,
+            ScenarioConfigPaths paths,
             out string configDir,
             out string manifestPath,
+            out string blueprintPath,
             out string[] yamlFiles,
             out string errorMessage)
         {
-            string scenarioDir = Path.Combine(projectRoot, "Assets/_RLMovie/Environments", sceneName);
-            configDir = Path.Combine(scenarioDir, "Config");
-            manifestPath = Path.Combine(configDir, "scenario_manifest.yaml");
+            configDir = paths.ConfigDirectory;
+            manifestPath = paths.ManifestPath;
+            blueprintPath = string.Empty;
             yamlFiles = Array.Empty<string>();
             errorMessage = string.Empty;
 
@@ -335,10 +344,7 @@ namespace RLMovie.Editor
                 return false;
             }
 
-            yamlFiles = Directory.GetFiles(configDir, "*.yaml")
-                .Where(path => !string.Equals(Path.GetFileName(path), "scenario_manifest.yaml", StringComparison.OrdinalIgnoreCase))
-                .Where(path => !string.Equals(Path.GetFileName(path), "template_config.yaml", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+            yamlFiles = ScenarioConfigIO.GetCandidateTrainingConfigPaths(paths);
 
             if (yamlFiles.Length == 0)
             {
@@ -346,7 +352,18 @@ namespace RLMovie.Editor
                 return false;
             }
 
-            string trainingConfig = ReadTopLevelScalar(manifestPath, "training_config");
+            ScenarioManifestData manifest;
+            try
+            {
+                manifest = ScenarioConfigIO.LoadManifest(manifestPath);
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"manifest の読み込みに失敗しました: {ex.Message}";
+                return false;
+            }
+
+            string trainingConfig = manifest.TrainingConfig;
             if (string.IsNullOrWhiteSpace(trainingConfig))
             {
                 errorMessage = "manifest の `training_config` が空です。Build for Colab で使う学習 YAML をファイル名で指定してください。";
@@ -370,6 +387,12 @@ namespace RLMovie.Editor
             }
 
             yamlFiles = new[] { selectedYamlPath };
+            blueprintPath = ScenarioConfigIO.ResolveBlueprintPath(configDir, manifest);
+            if (string.IsNullOrWhiteSpace(blueprintPath) || !File.Exists(blueprintPath))
+            {
+                errorMessage = $"manifest の `runtime_blueprint` が有効な blueprint を指していません。現在値: {manifest.RuntimeBlueprint}";
+                return false;
+            }
 
             return true;
         }
@@ -379,6 +402,7 @@ namespace RLMovie.Editor
             string buildDir,
             string configDir,
             string manifestPath,
+            string blueprintPath,
             string[] yamlFiles,
             string trainingRequirementsPath)
         {
@@ -396,6 +420,10 @@ namespace RLMovie.Editor
             File.Copy(manifestPath, manifestDest, true);
             Debug.Log($"[BuildForColab] 📋 Manifest copied: {Path.GetFileName(manifestPath)}");
 
+            string blueprintDest = Path.Combine(targetConfigDir, Path.GetFileName(blueprintPath));
+            File.Copy(blueprintPath, blueprintDest, true);
+            Debug.Log($"[BuildForColab] 📋 Blueprint copied: {Path.GetFileName(blueprintPath)}");
+
             string requirementsDest = Path.Combine(targetConfigDir, "training_requirements.txt");
             File.Copy(trainingRequirementsPath, requirementsDest, true);
             Debug.Log($"[BuildForColab] 📋 Training requirements copied: {Path.GetFileName(requirementsDest)}");
@@ -403,10 +431,10 @@ namespace RLMovie.Editor
             string readmePath = Path.Combine(targetConfigDir, "README.txt");
             File.WriteAllText(
                 readmePath,
-                $"Scenario: {sceneName}{Environment.NewLine}Manifest: {Path.GetFileName(manifestPath)}{Environment.NewLine}Training config: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}{Environment.NewLine}Training requirements: training_requirements.txt{Environment.NewLine}");
+                $"Scenario: {sceneName}{Environment.NewLine}Manifest: {Path.GetFileName(manifestPath)}{Environment.NewLine}Blueprint: {Path.GetFileName(blueprintPath)}{Environment.NewLine}Training config: {string.Join(", ", yamlFiles.Select(Path.GetFileName))}{Environment.NewLine}Training requirements: training_requirements.txt{Environment.NewLine}");
         }
 
-        private static ColabBuildResult Fail(string message, bool interactive, string sceneName = null, string manifestPath = null, string[] yamlFiles = null)
+        private static ColabBuildResult Fail(string message, bool interactive, string sceneName = null, string manifestPath = null, string blueprintPath = null, string[] yamlFiles = null)
         {
             if (interactive)
             {
@@ -418,6 +446,7 @@ namespace RLMovie.Editor
                 Success = false,
                 SceneName = sceneName,
                 ManifestPath = manifestPath,
+                BlueprintPath = blueprintPath,
                 YamlFiles = yamlFiles ?? Array.Empty<string>(),
                 Message = message
             };
@@ -593,28 +622,6 @@ namespace RLMovie.Editor
             using var reader = new StreamReader(stream);
             string contents = reader.ReadToEnd();
             return contents.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
-        }
-
-        private static string ReadTopLevelScalar(string filePath, string key)
-        {
-            foreach (string line in File.ReadLines(filePath))
-            {
-                if (string.IsNullOrWhiteSpace(line) || char.IsWhiteSpace(line[0]))
-                {
-                    continue;
-                }
-
-                string trimmed = line.Trim();
-                if (!trimmed.StartsWith($"{key}:", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                string value = trimmed.Substring(key.Length + 1).Trim();
-                return value.Trim('"', '\'');
-            }
-
-            return string.Empty;
         }
 
     }

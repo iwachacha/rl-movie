@@ -1,25 +1,24 @@
-# RL シナリオ契約テンプレート
-# Golden Spine を使う新規シナリオの最小スターター契約です。
-
-scenario_name: Template
-scene_name: Template
-agent_class: TemplateAgent
-behavior_name: TemplateAgent
-training_config: "__TRAINING_CONFIG_NAME__"
-viewer_promise: "小さなエージェントが落下せずに Goal へ届くまでの失敗と上達を見せる"
-learning_goal: "スターター骨格ではエージェントが落下せずに Goal へ到達する基本方策を学習する"
+scenario_name: __SCENARIO_NAME__
+scene_name: __SCENARIO_NAME__
+starter_kind: __STARTER_KIND__
+agent_class: __AGENT_CLASS__
+behavior_name: __BEHAVIOR_NAME__
+training_config: __TRAINING_CONFIG_NAME__
+runtime_blueprint: scenario_blueprint.yaml
+viewer_promise: "A readable hero learns to approach a clear target while the shared recording backbone captures failure and improvement."
+learning_goal: "Use the shared core backbone to learn a simple, readable hero-to-target interaction before specializing the scenario."
 success_conditions:
-  - "エージェントと Goal の距離が goalDistance 未満になったら成功"
+  - "The hero reaches the primary target within interactionRadius."
 failure_conditions:
-  - "EnvironmentManager の fallThreshold を下回ったら失敗"
+  - "The hero falls below the environment fall threshold."
 observation_contract:
   vector_size: 13
   items:
-    - "agent localPosition (3)"
-    - "goal localPosition (3)"
-    - "agent rigidbody linearVelocity (3)"
-    - "normalized direction to goal (3)"
-    - "normalized distance to goal (1)"
+    - "hero localPosition (3)"
+    - "primary target localPosition (3)"
+    - "hero rigidbody linearVelocity (3)"
+    - "normalized direction to primary target (3)"
+    - "normalized distance to primary target (1)"
 action_contract:
   type: continuous
   size: 2
@@ -31,47 +30,41 @@ reward_rules:
     - "Success: +1.0"
     - "Fail: -1.0"
   dense:
-    - "progressReward: +(previousDistanceToGoal - distanceToGoal) * 0.02"
+    - "progress reward from moving toward the primary target"
   penalties:
-    - "step penalty: -0.0005"
+    - "small step penalty to encourage efficient movement"
 randomization_knobs:
-  - name: "envManager.randomizePositions"
-    purpose: "開始位置と Goal 位置のランダム化を有効にする"
+  - name: environmentManager.randomizePositions
+    purpose: "Allow the reference starter to vary hero and target start positions."
     default: "true"
-  - name: "envManager.randomizationStrength"
-    purpose: "ランダム化範囲の強さ"
+  - name: environmentManager.randomizationStrength
+    purpose: "Control the spread of randomized spawn positions."
     default: "0.5"
-  - name: "moveForce"
-    purpose: "移動入力の効き方"
-    default: "1.0"
 difficulty_stages:
   - name: Baseline
-    intent: "Goal への基本ナビゲーションを学ばせる"
-  - name: ThemeSwap
-    intent: "見た目を変えても同じ骨格で学習を維持する"
-  - name: Hard
-    intent: "障害物やルールを足して録画映えする挙動に拡張する"
+    intent: "Keep the first cut extremely readable."
+  - name: ThemeLift
+    intent: "Swap visuals or dressing while preserving the same shared backbone."
 visual_theme:
-  style: "ビジュアルは自由に差し替えるが Goal と Agent の可読性を保つ"
-  readability: "色・サイズ・カメラで成功と失敗が UI なしでも読めるようにする"
+  style: "Use the readability kit so hero, target, floor, and hazard are distinguishable immediately."
+  readability: "A new viewer should understand actor, objective, and danger without debug UI."
 visual_hooks:
-  - "小さな Agent と光る Goal がむき出しの足場で対比される"
-  - "落下や立て直しが広角でひと目に読める"
-  - "Goal 手前の近接ミスと最後の到達が対比で映える"
-thumbnail_moment: "Goal 目前で落下しそうな Agent を Goal と一緒に大きく見せる"
+  - "One readable hero against one privileged target."
+  - "Failures and recoveries remain visible from the explain and wide shots."
+  - "The first clean solve can plausibly become the thumbnail or cold open callback."
+thumbnail_moment: "Show the hero nearly touching the target with clear surrounding danger or miss risk."
 camera_plan:
-  default_view: "DefaultView を学習確認とプレイバックの基準カメラにする"
+  default_view: ExplainView
   recording_cuts:
-    - "RecordWideLeft"
-    - "RecordWideRight"
-    - "RecordFollowRear"
+    - ExplainView
+    - WideA
+    - WideB
+    - FollowView
+  thumbnail_reference: ExplainView
 acceptance_criteria:
-  - "ScenarioBroadcastOverlay で Goal と Latest event を画面上で読める"
-  - "ScenarioHighlightTracker で sparse export が取れる"
-  - "Heuristic で Goal 到達を再現できる"
-  - "ScenarioGoldenSpine の参照が埋まっている"
-  - "Validate Current Scenario が通る"
-  - "Build for Colab 後に Config 内へ training YAML と manifest が同梱される"
-  - "Inference Only で自然な 1 エピソード再生確認ができる"
+  - "The validator passes for the new starter."
+  - "The overlay label and objective text are sourced from the manifest instead of generic placeholder text."
+  - "The recording helper can resolve explain, wide_a, wide_b, and follow_optional camera roles."
+  - "The highlight tracker and training visualizer are wired through the shared backbone."
 baseline_run: ""
-spec_version: 1
+spec_version: 3

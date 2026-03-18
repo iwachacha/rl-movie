@@ -1,13 +1,33 @@
 ---
-description: 互換用 alias。新規シナリオ作成は scenario-spec で動画向け契約を固めてから scenario-build へ進む。
+description: Legacy alias. Design with scenario-spec first, then implement with scenario-build, while following the shared common-backbone policy.
 ---
 
 # Legacy Alias: create-scenario
 
-- 正本: `../skills/scenario-spec/SKILL.md` -> `../skills/scenario-build/SKILL.md`
-- フックや動画価値が曖昧なら先に `../skills/rl-video-benchmarking/SKILL.md`
-- 追加参照: `../references/manifest-contract.md`
-- 追加参照: `../references/validation-build-gates.md`
-- 録画前提の読みやすさまで固めるなら `../references/video-standard.md`
-- 比較計画まで含むなら `../references/experiment-rules.md`
-- 到達点: `viewer_promise`、`visual_hooks`、`thumbnail_moment` を含む manifest 契約が固まり、その後に Scene、Agent、training YAML、manifest を作って Validator と Heuristic に進めること
+- Main path: `../skills/scenario-spec/SKILL.md` -> `../skills/scenario-build/SKILL.md`
+- Required reference: `../references/common-scenario-backbone.md`
+- Required reference: `../references/manifest-contract.md`
+- Required reference: `../references/validation-build-gates.md`
+- Optional benchmark support: `../skills/rl-video-benchmarking/SKILL.md`
+- Optional video framing support: `../references/video-standard.md`
+- Experiment discipline: `../references/experiment-rules.md`
+
+## Minimum Inputs
+
+- A scenario idea or clear change request.
+- A shared backbone plan naming which common systems will be reused.
+- A manifest-ready viewer promise, visual hooks, thumbnail moment, and learning goal.
+
+## Phase Gates
+
+1. Spec the scenario around the shared backbone first.
+2. Extend `_RLMovie/Common` only where the gap is reusable.
+3. Keep scenario-local gameplay inside the scenario folder.
+4. Validate before build and heuristic-check before train handoff.
+
+## Done When
+
+- The scenario contract is clear.
+- The implementation reuses the shared backbone where appropriate.
+- Validator passes.
+- The train/build/record path still goes through the common tooling.

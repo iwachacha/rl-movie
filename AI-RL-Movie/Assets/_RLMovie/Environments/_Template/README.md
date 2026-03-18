@@ -1,24 +1,20 @@
-# Golden Spine Starter
+# V2 Common Starter Source
 
-`_Template` is the official starter source for new RL Movie scenarios.
+`_Template` is the generator source for the V2 common scenario starter.
 
 Use:
-- `RLMovie/Create Golden Scenario Starter Files` to generate a new scenario folder, manifest, training config, agent stub, and scene builder.
-- After Unity recompiles, run the generated `RLMovie/Create <Scenario> Scene` menu item.
+- `RLMovie/Create Scenario Starter Files`
+- After Unity recompiles, run `RLMovie/Create <Scenario> Scene`
 
-What is standardized:
-- `scenario_manifest.yaml` contract shape
-- `viewer_promise`, `visual_hooks`, and `thumbnail_moment` as the viewer-facing contract captured before build
-- `training_config` in the manifest selects the active training YAML for validation, build, and Colab
-- `EnvironmentRoot`, `ScenarioGoldenSpine`, `EnvironmentManager`
-- `TrainingVisualizer`, `RecordingHelper`, and wide/follow camera anchors
-- `ScenarioBroadcastOverlay` for viewer-facing HUD and reward popups
-- `ScenarioHighlightTracker` for sparse highlight + snapshot export
-- starter PPO config and naming alignment
+What V2 standardizes:
+- `scenario_manifest.yaml` as the viewer-facing contract
+- `scenario_blueprint.yaml` as the common role/team wiring contract
+- `TrainingVisualizer`, `RecordingHelper`, `ScenarioBroadcastOverlay`, and `ScenarioHighlightTracker`
+- role-based `ScenarioGoldenSpine` bindings for agents, teams, scene anchors, cameras, and shared backbone references
+- the minimum readability kit under `Assets/_RLMovie/Common/Materials` and `Assets/_RLMovie/Common/Prefabs`
 
-What should be customized per scenario:
-- observations
-- actions
-- reward logic
-- hazards, props, physics rules
-- theme, art, VFX, and recording polish
+What each scenario should customize:
+- observations and actions
+- reward logic and termination details
+- environment rules and archetype-specific builders
+- art direction, dressing, and recording polish

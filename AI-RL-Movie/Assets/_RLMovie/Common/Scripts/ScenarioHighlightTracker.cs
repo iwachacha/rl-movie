@@ -15,6 +15,9 @@ namespace RLMovie.Common
         [Header("=== Tracker References ===")]
         [SerializeField] private BaseRLAgent targetAgent;
         [SerializeField] private string scenarioLabel = "Scenario";
+        [SerializeField] private string trackedAgentRole = "hero";
+        [SerializeField] private string[] trackedAgentRoles = Array.Empty<string>();
+        [SerializeField] private string trackedAgentTeam = string.Empty;
 
         [Header("=== Highlight Detection ===")]
         [SerializeField] private bool enableHighlightDetection = true;
@@ -142,7 +145,43 @@ namespace RLMovie.Common
             var spine = GetComponentInParent<ScenarioGoldenSpine>();
             if (spine != null)
             {
-                targetAgent = spine.PrimaryAgent;
+                BaseRLAgent resolvedAgent;
+                if (!string.IsNullOrWhiteSpace(trackedAgentRole) &&
+                    spine.TryGetAgentRole(trackedAgentRole, out resolvedAgent) &&
+                    resolvedAgent != null)
+                {
+                    targetAgent = resolvedAgent;
+                }
+                else if (trackedAgentRoles != null && trackedAgentRoles.Length > 0)
+                {
+                    for (int i = 0; i < trackedAgentRoles.Length; i++)
+                    {
+                        string role = trackedAgentRoles[i];
+                        if (string.IsNullOrWhiteSpace(role))
+                        {
+                            continue;
+                        }
+
+                        if (spine.TryGetAgentRole(role, out resolvedAgent) && resolvedAgent != null)
+                        {
+                            targetAgent = resolvedAgent;
+                            break;
+                        }
+                    }
+                }
+
+                if (targetAgent == null
+                    && !string.IsNullOrWhiteSpace(trackedAgentTeam)
+                    && spine.TryGetPrimaryAgentForTeam(trackedAgentTeam, out resolvedAgent)
+                    && resolvedAgent != null)
+                {
+                    targetAgent = resolvedAgent;
+                }
+
+                if (targetAgent == null)
+                {
+                    targetAgent = spine.PrimaryAgent;
+                }
             }
         }
 
