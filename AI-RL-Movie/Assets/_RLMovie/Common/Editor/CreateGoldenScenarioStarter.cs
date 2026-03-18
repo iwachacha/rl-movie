@@ -67,12 +67,8 @@ namespace RLMovie.Editor
                 "OK");
         }
 
-        [MenuItem("RLMovie/Create Golden Scenario Starter Files")]
-        public static void CreateStarterFilesLegacyAlias()
-        {
-            Debug.LogWarning("[CreateScenarioStarter] 'RLMovie/Create Golden Scenario Starter Files' is deprecated. Use 'RLMovie/Create Scenario Starter Files' instead.");
-            CreateStarterFiles();
-        }
+
+
 
         public static StarterFilesResult CreateStarterFilesForScenario(string scenarioName, bool overwriteExisting = false)
         {

@@ -59,7 +59,7 @@ namespace RLMovie.Common
         protected override void Awake()
         {
             base.Awake();
-            _visualDebugEnabled = !IsHeadlessRuntime();
+            _visualDebugEnabled = !RLMovieRuntime.IsHeadless;
 
             if (!_visualDebugEnabled)
             {
@@ -359,10 +359,7 @@ namespace RLMovie.Common
                 : $"Penalty {reward:F2}";
         }
 
-        private static bool IsHeadlessRuntime()
-        {
-            return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
-        }
+
 
         #endregion
     }

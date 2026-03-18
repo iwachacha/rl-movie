@@ -34,6 +34,10 @@ namespace RLMovie.Editor
         public ScenarioGoldenSpine Spine { get; set; }
     }
 
+    /// <summary>
+    /// Abstract base for starter definitions.
+    /// Extend this to create new starter kinds (e.g. multi_agent, navigation, avoidance).
+    /// </summary>
     internal abstract class ScenarioStarterDefinition
     {
         protected const string EnvironmentsRoot = "Assets/_RLMovie/Environments";
@@ -53,7 +57,6 @@ namespace RLMovie.Editor
         public virtual ScenarioStarterScaffold CreateScaffold(string scenarioName)
         {
             string scenarioRoot = $"{EnvironmentsRoot}/{scenarioName}";
-            string scenePath = $"{scenarioRoot}/Scenes/{scenarioName}.unity";
             string agentClassName = $"{scenarioName}Agent";
             string behaviorName = agentClassName;
             string trainingConfigName = ToSnakeCase(scenarioName) + "_config.yaml";
@@ -63,7 +66,7 @@ namespace RLMovie.Editor
                 StarterKind = Kind,
                 ScenarioName = scenarioName,
                 ScenarioRootAssetPath = scenarioRoot,
-                ScenePath = scenePath,
+                ScenePath = $"{scenarioRoot}/Scenes/{scenarioName}.unity",
                 AgentPath = $"{scenarioRoot}/Scripts/{scenarioName}Agent.cs",
                 BuilderPath = $"{scenarioRoot}/Editor/{scenarioName}SceneBuilder.cs",
                 ManifestPath = $"{scenarioRoot}/Config/scenario_manifest.yaml",
@@ -77,6 +80,9 @@ namespace RLMovie.Editor
 
         public abstract Dictionary<string, string> CreateDefaultFiles(ScenarioStarterScaffold scaffold);
 
+        /// <summary>
+        /// Override to add starter-kind-specific validation rules.
+        /// </summary>
         public virtual void ValidateStarterSpecificRules(ScenarioStarterValidationContext context, ScenarioValidationReport report)
         {
         }
@@ -105,6 +111,10 @@ namespace RLMovie.Editor
         }
     }
 
+    /// <summary>
+    /// Default starter: a single hero agent with target-reaching gameplay.
+    /// Scene construction is handled entirely by the generated SceneBuilder template.
+    /// </summary>
     internal sealed class CoreScenarioStarterDefinition : ScenarioStarterDefinition
     {
         public const string StarterKindCore = "core";
@@ -129,67 +139,39 @@ namespace RLMovie.Editor
 
         public override void ValidateStarterSpecificRules(ScenarioStarterValidationContext context, ScenarioValidationReport report)
         {
-            ScenarioAgentBlueprintData primaryAgent = context.Blueprint.ResolvePrimaryAgent(context.Manifest);
-            if (primaryAgent == null)
+            if (context.Spine == null)
             {
-                report.AddError("core starter requires a primary agent definition.");
+                report.AddError("core starter requires a ScenarioGoldenSpine in the scene.");
                 return;
-            }
-
-            if (!string.Equals(primaryAgent.ClassName, context.Manifest.AgentClass, StringComparison.Ordinal))
-            {
-                report.AddError($"core starter primary agent class must match manifest.agent_class `{context.Manifest.AgentClass}`.");
-            }
-
-            if (!string.Equals(primaryAgent.BehaviorName, context.Manifest.BehaviorName, StringComparison.Ordinal))
-            {
-                report.AddError($"core starter primary agent behavior must match manifest.behavior_name `{context.Manifest.BehaviorName}`.");
-            }
-
-            if (string.IsNullOrWhiteSpace(context.Blueprint.SceneRoles.PrimaryTarget))
-            {
-                report.AddError("core starter requires scenario_blueprint.scene_roles.primary_target.");
-            }
-
-            if (context.Spine == null || !context.Spine.TryGetSceneRole("primary_target", out Transform primaryTarget) || primaryTarget == null)
-            {
-                report.AddError("core starter requires the `primary_target` scene role to resolve.");
             }
 
             string[] requiredCameraRoles = { "explain", "wide_a", "wide_b" };
             for (int i = 0; i < requiredCameraRoles.Length; i++)
             {
                 string role = requiredCameraRoles[i];
-                if (context.Spine == null || !context.Spine.TryGetCameraRole(role, out Transform anchor) || anchor == null)
+                if (!context.Spine.TryGetCameraRole(role, out Transform anchor) || anchor == null)
                 {
                     report.AddError($"core starter requires the `{role}` camera role to resolve.");
                 }
             }
         }
-
-        public static GoldenScenarioSceneContext CreateStarterScene<TAgent>(
-            string scenePath,
-            string behaviorName,
-            int vectorObservationSize,
-            int continuousActionSize,
-            Action<GoldenScenarioSceneContext, TAgent> configureScenario = null)
-            where TAgent : BaseRLAgent
-        {
-            return GoldenScenarioSceneBuilder.CreateStarterScene(
-                scenePath,
-                behaviorName,
-                vectorObservationSize,
-                continuousActionSize,
-                configureScenario);
-        }
     }
 
+    /// <summary>
+    /// Registry of starter kinds. To add a new starter kind:
+    /// 1. Create a class extending ScenarioStarterDefinition
+    /// 2. Register it in the Definitions dictionary below
+    /// 3. Create template files in a new template directory
+    /// </summary>
     internal static class ScenarioStarterRegistry
     {
         private static readonly Dictionary<string, ScenarioStarterDefinition> Definitions =
             new Dictionary<string, ScenarioStarterDefinition>(StringComparer.OrdinalIgnoreCase)
             {
                 [CoreScenarioStarterDefinition.StarterKindCore] = new CoreScenarioStarterDefinition()
+                // Add new starter kinds here:
+                // ["multi_agent"] = new MultiAgentStarterDefinition(),
+                // ["navigation"] = new NavigationStarterDefinition(),
             };
 
         public static ScenarioStarterDefinition GetDefault()

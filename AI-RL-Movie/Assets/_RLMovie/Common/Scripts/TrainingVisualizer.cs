@@ -30,27 +30,11 @@ namespace RLMovie.Common
         private readonly float panelHeight = 200f;
         private readonly float panelMargin = 10f;
         private readonly float graphHeight = 100f;
-        private Texture2D whiteTexture;
-
-        private Texture2D WhiteTexture
-        {
-            get
-            {
-                if (whiteTexture == null)
-                {
-                    whiteTexture = new Texture2D(1, 1);
-                    whiteTexture.SetPixel(0, 0, Color.white);
-                    whiteTexture.Apply();
-                }
-
-                return whiteTexture;
-            }
-        }
 #endif
 
         private void Awake()
         {
-            runtimeUiEnabled = !IsHeadlessRuntime();
+            runtimeUiEnabled = !RLMovieRuntime.IsHeadless;
             if (!runtimeUiEnabled)
             {
                 enabled = false;
@@ -129,7 +113,7 @@ namespace RLMovie.Common
             float graphY = statY + 42;
             float graphW = panelWidth - 20;
 
-            DrawRect(new Rect(graphX, graphY, graphW, graphHeight), new Color(0.1f, 0.1f, 0.1f, 0.8f));
+            RLMovieIMGUI.DrawRect(new Rect(graphX, graphY, graphW, graphHeight), new Color(0.1f, 0.1f, 0.1f, 0.8f));
 
             if (rewardHistory.Count > 1)
             {
@@ -143,13 +127,13 @@ namespace RLMovie.Common
                     float y1 = graphY + graphHeight - ((rewardHistory[i - 1] - minReward) / range) * graphHeight;
                     float y2 = graphY + graphHeight - ((rewardHistory[i] - minReward) / range) * graphHeight;
 
-                    DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), graphColor, 2f);
+                    RLMovieIMGUI.DrawLine(new Vector2(x1, y1), new Vector2(x2, y2), graphColor, 2f);
                 }
 
                 float zeroY = graphY + graphHeight - ((0f - minReward) / range) * graphHeight;
                 if (zeroY > graphY && zeroY < graphY + graphHeight)
                 {
-                    DrawLine(
+                    RLMovieIMGUI.DrawLine(
                         new Vector2(graphX, zeroY),
                         new Vector2(graphX + graphW, zeroY),
                         new Color(1f, 1f, 1f, 0.3f),
@@ -169,33 +153,9 @@ namespace RLMovie.Common
 
         private void DrawRect(Rect rect, Color color)
         {
-            Color previous = GUI.color;
-            GUI.color = color;
-            GUI.DrawTexture(rect, WhiteTexture);
-            GUI.color = previous;
-        }
-
-        private void DrawLine(Vector2 a, Vector2 b, Color color, float width)
-        {
-            Color previous = GUI.color;
-            GUI.color = color;
-
-            Vector2 delta = b - a;
-            float angle = Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg;
-
-            Matrix4x4 matrixBackup = GUI.matrix;
-            GUIUtility.RotateAroundPivot(angle, a);
-            GUI.DrawTexture(new Rect(a.x, a.y - width / 2f, delta.magnitude, width), WhiteTexture);
-            GUI.matrix = matrixBackup;
-
-            GUI.color = previous;
+            RLMovieIMGUI.DrawRect(rect, color);
         }
 #endif
-
-        private static bool IsHeadlessRuntime()
-        {
-            return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
-        }
 
         private void RecalculateRewardBounds()
         {

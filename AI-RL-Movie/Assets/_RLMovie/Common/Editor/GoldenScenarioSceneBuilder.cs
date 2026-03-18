@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using Unity.MLAgents;
 using Unity.MLAgents.Actuators;
@@ -14,36 +13,18 @@ using RLMovie.Common;
 namespace RLMovie.Editor
 {
     /// <summary>
-    /// Creates the V2 shared scene backbone used by new scenarios.
-    /// Theme-specific builders should only layer specialized gameplay on top.
+    /// Builds the shared scenario backbone used by all scenarios.
+    /// Creates only infrastructure (environment root, spine, cameras, overlays, recording).
+    /// Gameplay objects (agents, targets, hazards) are added by scenario-specific builders.
     /// </summary>
     public static class GoldenScenarioSceneBuilder
     {
         private const string CommonMaterialsRoot = "Assets/_RLMovie/Common/Materials";
 
-        public static GoldenScenarioSceneContext CreateStarterScene<TAgent>(
-            string scenePath,
-            string behaviorName,
-            int vectorObservationSize,
-            int continuousActionSize,
-            Action<GoldenScenarioSceneContext, TAgent> configureScenario = null)
-            where TAgent : BaseRLAgent
-        {
-            return CreateStarterScene(
-                scenePath,
-                behaviorName,
-                vectorObservationSize,
-                ActionSpec.MakeContinuous(Mathf.Max(1, continuousActionSize)),
-                configureScenario);
-        }
-
-        public static GoldenScenarioSceneContext CreateStarterScene<TAgent>(
-            string scenePath,
-            string behaviorName,
-            int vectorObservationSize,
-            ActionSpec actionSpec,
-            Action<GoldenScenarioSceneContext, TAgent> configureScenario = null)
-            where TAgent : BaseRLAgent
+        /// <summary>
+        /// Builds the scenario backbone from manifest/blueprint at the given scene path.
+        /// </summary>
+        public static ScenarioBackboneContext BuildScenarioBackbone(string scenePath)
         {
             if (string.IsNullOrWhiteSpace(scenePath))
             {
@@ -56,36 +37,25 @@ namespace RLMovie.Editor
             ScenarioManifestData manifest = ScenarioConfigIO.LoadManifest(paths.ManifestPath);
             ScenarioBlueprintData blueprint = ScenarioConfigIO.LoadBlueprint(paths.ConfigDirectory, manifest);
 
-            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
-            GoldenScenarioSceneContext context = BuildSharedBackbone<TAgent>(
-                scene,
-                scenePath,
-                behaviorName,
-                vectorObservationSize,
-                actionSpec,
-                manifest,
-                blueprint);
-
-            configureScenario?.Invoke(context, (TAgent)context.Agent);
-
-            EditorSceneManager.SaveScene(scene, scenePath);
-            AssetDatabase.SaveAssets();
-            AssetDatabase.Refresh();
-
-            return context;
+            return BuildScenarioBackbone(scenePath, manifest, blueprint);
         }
 
-        private static GoldenScenarioSceneContext BuildSharedBackbone<TAgent>(
-            Scene scene,
+        /// <summary>
+        /// Builds the scenario backbone with explicit manifest and blueprint.
+        /// </summary>
+        public static ScenarioBackboneContext BuildScenarioBackbone(
             string scenePath,
-            string behaviorName,
-            int vectorObservationSize,
-            ActionSpec actionSpec,
             ScenarioManifestData manifest,
             ScenarioBlueprintData blueprint)
-            where TAgent : BaseRLAgent
         {
+            if (string.IsNullOrWhiteSpace(scenePath))
+            {
+                throw new ArgumentException("scenePath is required.", nameof(scenePath));
+            }
+
             V2ReadabilityKitBuilder.EnsureAssets();
+
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
 
             Camera mainCamera = Camera.main;
             if (mainCamera == null)
@@ -96,59 +66,14 @@ namespace RLMovie.Editor
             ConfigureMainCamera(mainCamera);
             ConfigureDefaultDirectionalLight();
 
-            ScenarioAgentBlueprintData primaryAgentBlueprint = blueprint.ResolvePrimaryAgent(manifest)
-                ?? throw new InvalidOperationException("Starter scene requires a primary agent definition.");
-
             string arenaRootName = FirstNonEmpty(blueprint.SceneRoles.ArenaRoot, "EnvironmentRoot");
             GameObject environmentRoot = new GameObject(arenaRootName);
             var environmentManager = environmentRoot.AddComponent<EnvironmentManager>();
             var goldenSpine = environmentRoot.AddComponent<ScenarioGoldenSpine>();
 
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            floor.name = "ArenaFloor";
-            floor.transform.SetParent(environmentRoot.transform);
-            floor.transform.localPosition = Vector3.zero;
-
-            string heroName = ToDisplayName(primaryAgentBlueprint.Role, "Hero");
-            GameObject heroObject = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            heroObject.name = heroName;
-            heroObject.transform.SetParent(environmentRoot.transform);
-            heroObject.transform.localPosition = new Vector3(0f, 1f, 0f);
-
-            string primaryTargetName = FirstNonEmpty(blueprint.SceneRoles.PrimaryTarget, "PrimaryTarget");
-            GameObject primaryTarget = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            primaryTarget.name = primaryTargetName;
-            primaryTarget.transform.SetParent(environmentRoot.transform);
-            primaryTarget.transform.localPosition = new Vector3(3f, 0.6f, 3f);
-            primaryTarget.transform.localScale = new Vector3(0.9f, 0.9f, 0.9f);
-
-            GameObject primaryHazard = null;
-            if (!string.IsNullOrWhiteSpace(blueprint.SceneRoles.PrimaryHazard))
-            {
-                primaryHazard = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-                primaryHazard.name = blueprint.SceneRoles.PrimaryHazard;
-                primaryHazard.transform.SetParent(environmentRoot.transform);
-                primaryHazard.transform.localPosition = new Vector3(-3.5f, 0.75f, 2.5f);
-                primaryHazard.transform.localScale = new Vector3(0.65f, 0.75f, 0.65f);
-            }
-
-            var heroRigidbody = heroObject.AddComponent<Rigidbody>();
-            heroRigidbody.mass = 1f;
-            heroRigidbody.angularDamping = 0.5f;
-
-            var agent = heroObject.AddComponent<TAgent>();
-            var decisionRequester = heroObject.GetComponent<DecisionRequester>() ?? heroObject.AddComponent<DecisionRequester>();
-            decisionRequester.DecisionPeriod = 5;
-
-            var behaviorParameters = heroObject.GetComponent<BehaviorParameters>() ?? heroObject.AddComponent<BehaviorParameters>();
-            behaviorParameters.BehaviorName = behaviorName;
-            behaviorParameters.BehaviorType = BehaviorType.Default;
-            behaviorParameters.BrainParameters.VectorObservationSize = vectorObservationSize;
-            behaviorParameters.BrainParameters.ActionSpec = actionSpec;
-
+            // Camera rig
             GameObject cameraRig = new GameObject("CameraRig");
             cameraRig.transform.SetParent(environmentRoot.transform);
-
             Dictionary<string, Transform> cameraAnchors = CreateCameraAnchors(cameraRig.transform, blueprint);
             Transform defaultCameraView = ResolveCameraAnchor(cameraAnchors, blueprint.CameraRoles.DefaultCamera, blueprint.CameraRoles.Explain);
             if (defaultCameraView != null)
@@ -156,99 +81,96 @@ namespace RLMovie.Editor
                 mainCamera.transform.SetPositionAndRotation(defaultCameraView.position, defaultCameraView.rotation);
             }
 
+            // Training visualizer
             GameObject visualizerObject = new GameObject("TrainingVisualizer");
             visualizerObject.transform.SetParent(environmentRoot.transform);
             var trainingVisualizer = visualizerObject.AddComponent<TrainingVisualizer>();
 
+            // Overlay anchor
             Transform overlayAnchor = EnsureSceneRoleAnchor(
                 environmentRoot.transform,
                 FirstNonEmpty(blueprint.SceneRoles.OverlayAnchor, "OverlayAnchor"));
 
+            // Recording helper
             GameObject recordingObject = new GameObject("RecordingHelper");
             recordingObject.transform.SetParent(environmentRoot.transform);
             var recordingHelper = recordingObject.AddComponent<RecordingHelper>();
 
+            // Highlight tracker
             GameObject highlightObject = new GameObject("HighlightTracker");
             highlightObject.transform.SetParent(environmentRoot.transform);
             var highlightTracker = highlightObject.AddComponent<ScenarioHighlightTracker>();
 
+            // Broadcast overlay
             GameObject overlayObject = new GameObject("BroadcastOverlay");
             overlayObject.transform.SetParent(overlayAnchor, false);
             var broadcastOverlay = overlayObject.AddComponent<ScenarioBroadcastOverlay>();
 
-            ConfigureRecordingHelper(recordingHelper, goldenSpine, cameraAnchors, manifest, blueprint, agent);
+            ConfigureRecordingHelper(recordingHelper, goldenSpine, cameraAnchors, manifest, blueprint);
             ConfigureHighlightTracker(highlightTracker, manifest, blueprint);
             ConfigureOverlay(broadcastOverlay, manifest, blueprint);
-            ConfigureTrainingVisualizer(trainingVisualizer, agent);
-            ApplyReadabilityKit(floor, heroObject, primaryTarget, primaryHazard, blueprint.VisualDefaults);
 
-            ScenarioGoldenSpine.SceneRoleBinding[] sceneRoles =
-            {
-                new ScenarioGoldenSpine.SceneRoleBinding { role = "arena_root", target = environmentRoot.transform },
-                new ScenarioGoldenSpine.SceneRoleBinding { role = "primary_target", target = primaryTarget.transform },
-                new ScenarioGoldenSpine.SceneRoleBinding { role = "overlay_anchor", target = overlayAnchor },
-                new ScenarioGoldenSpine.SceneRoleBinding { role = "primary_hazard", target = primaryHazard != null ? primaryHazard.transform : null }
-            };
-
-            ScenarioGoldenSpine.AgentRoleBinding[] agentRoles =
-            {
-                new ScenarioGoldenSpine.AgentRoleBinding
-                {
-                    role = primaryAgentBlueprint.Role,
-                    team = FirstNonEmpty(primaryAgentBlueprint.Team, "solo"),
-                    primary = primaryAgentBlueprint.Primary,
-                    agent = agent
-                }
-            };
-
-            ScenarioGoldenSpine.TeamRoleBinding[] teamRoles =
-            {
-                new ScenarioGoldenSpine.TeamRoleBinding
-                {
-                    team = FirstNonEmpty(primaryAgentBlueprint.Team, "solo"),
-                    primaryAgent = agent,
-                    agents = new[] { agent }
-                }
-            };
-
-            List<ScenarioGoldenSpine.CameraRoleBinding> cameraRoles = new List<ScenarioGoldenSpine.CameraRoleBinding>();
-            AddCameraRoleBinding(cameraRoles, "default_camera", defaultCameraView);
-            AddCameraRoleBinding(cameraRoles, "explain", ResolveCameraAnchor(cameraAnchors, blueprint.CameraRoles.Explain));
-            AddCameraRoleBinding(cameraRoles, "wide_a", ResolveCameraAnchor(cameraAnchors, blueprint.CameraRoles.WideA));
-            AddCameraRoleBinding(cameraRoles, "wide_b", ResolveCameraAnchor(cameraAnchors, blueprint.CameraRoles.WideB));
-            AddCameraRoleBinding(cameraRoles, "follow_optional", ResolveCameraAnchor(cameraAnchors, blueprint.CameraRoles.FollowOptional));
-            AddCameraRoleBinding(cameraRoles, "comparison_optional", ResolveCameraAnchor(cameraAnchors, blueprint.CameraRoles.ComparisonOptional));
-
-            goldenSpine.Configure(
-                environmentRoot.transform,
-                environmentManager,
-                trainingVisualizer,
-                recordingHelper,
-                broadcastOverlay,
-                highlightTracker,
-                sceneRoles,
-                agentRoles,
-                teamRoles,
-                cameraRoles.ToArray());
-
-            return new GoldenScenarioSceneContext(
+            return new ScenarioBackboneContext(
                 scene,
+                scenePath,
                 goldenSpine,
                 environmentRoot,
                 environmentManager,
-                agent,
-                primaryTarget.transform,
-                primaryHazard != null ? primaryHazard.transform : null,
                 mainCamera,
                 trainingVisualizer,
                 recordingHelper,
                 broadcastOverlay,
                 highlightTracker,
                 defaultCameraView,
-                goldenSpine.RecordingCameraViews,
+                cameraAnchors,
+                overlayAnchor,
                 manifest,
                 blueprint);
         }
+
+        /// <summary>
+        /// Configures ML-Agents BehaviorParameters and DecisionRequester on a GameObject.
+        /// Call from scenario-specific builders after adding the Agent component.
+        /// </summary>
+        public static void ConfigureAgentBehavior(
+            GameObject agentObject,
+            string behaviorName,
+            int vectorObservationSize,
+            ActionSpec actionSpec,
+            int decisionPeriod = 5)
+        {
+            var behaviorParameters = agentObject.GetComponent<BehaviorParameters>() ?? agentObject.AddComponent<BehaviorParameters>();
+            behaviorParameters.BehaviorName = behaviorName;
+            behaviorParameters.BehaviorType = BehaviorType.Default;
+            behaviorParameters.BrainParameters.VectorObservationSize = vectorObservationSize;
+            behaviorParameters.BrainParameters.ActionSpec = actionSpec;
+
+            var decisionRequester = agentObject.GetComponent<DecisionRequester>() ?? agentObject.AddComponent<DecisionRequester>();
+            decisionRequester.DecisionPeriod = decisionPeriod;
+        }
+
+        /// <summary>
+        /// Applies a readability material to a GameObject, falling back to a solid color.
+        /// Call from scenario-specific builders.
+        /// </summary>
+        public static void ApplyReadabilityMaterial(GameObject targetObject, string materialName, Color fallbackColor)
+        {
+            if (targetObject == null) return;
+
+            Renderer renderer = targetObject.GetComponentInChildren<Renderer>();
+            if (renderer == null) return;
+
+            Material material = TryLoadMaterial(materialName);
+            if (material != null)
+            {
+                renderer.sharedMaterial = material;
+                return;
+            }
+
+            renderer.sharedMaterial.color = fallbackColor;
+        }
+
+        #region Private Helpers
 
         private static void ConfigureMainCamera(Camera mainCamera)
         {
@@ -260,10 +182,7 @@ namespace RLMovie.Editor
         {
             Light mainLight = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsSortMode.None)
                 .FirstOrDefault(light => light != null && light.type == LightType.Directional);
-            if (mainLight == null)
-            {
-                return;
-            }
+            if (mainLight == null) return;
 
             mainLight.transform.rotation = Quaternion.Euler(48f, -28f, 0f);
             mainLight.intensity = 1.15f;
@@ -283,16 +202,9 @@ namespace RLMovie.Editor
         }
 
         private static void CreateOrReuseCameraAnchor(
-            IDictionary<string, Transform> anchors,
-            Transform parent,
-            string anchorName,
-            Vector3 position,
-            Quaternion rotation)
+            IDictionary<string, Transform> anchors, Transform parent, string anchorName, Vector3 position, Quaternion rotation)
         {
-            if (string.IsNullOrWhiteSpace(anchorName) || anchors.ContainsKey(anchorName))
-            {
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(anchorName) || anchors.ContainsKey(anchorName)) return;
 
             GameObject anchor = new GameObject(anchorName);
             anchor.transform.SetParent(parent);
@@ -305,38 +217,20 @@ namespace RLMovie.Editor
         {
             for (int i = 0; i < names.Length; i++)
             {
-                string name = names[i];
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    continue;
-                }
-
-                if (anchors.TryGetValue(name, out Transform anchor))
-                {
+                if (!string.IsNullOrWhiteSpace(names[i]) && anchors.TryGetValue(names[i], out Transform anchor))
                     return anchor;
-                }
             }
-
             return null;
         }
 
         private static Transform EnsureSceneRoleAnchor(Transform parent, string anchorName)
         {
-            if (parent == null)
-            {
-                return null;
-            }
-
+            if (parent == null) return null;
             if (string.IsNullOrWhiteSpace(anchorName) || string.Equals(anchorName, parent.name, StringComparison.Ordinal))
-            {
                 return parent;
-            }
 
             Transform existing = parent.Find(anchorName);
-            if (existing != null)
-            {
-                return existing;
-            }
+            if (existing != null) return existing;
 
             GameObject anchor = new GameObject(anchorName);
             anchor.transform.SetParent(parent, false);
@@ -344,18 +238,12 @@ namespace RLMovie.Editor
             return anchor.transform;
         }
 
-        private static void ConfigureTrainingVisualizer(TrainingVisualizer visualizer, BaseRLAgent agent)
-        {
-            AssignObjectReference(visualizer, "targetAgent", agent);
-        }
-
         private static void ConfigureRecordingHelper(
             RecordingHelper helper,
             ScenarioGoldenSpine spine,
             IDictionary<string, Transform> cameraAnchors,
             ScenarioManifestData manifest,
-            ScenarioBlueprintData blueprint,
-            BaseRLAgent heroAgent)
+            ScenarioBlueprintData blueprint)
         {
             AssignObjectReference(helper, "scenarioSpine", spine);
             AssignBool(helper, "hideUIWhenRecording", blueprint.RecordingDefaults.HideTrainingUi);
@@ -368,7 +256,6 @@ namespace RLMovie.Editor
             AssignString(helper, "followCameraRole", FirstNonEmpty(blueprint.RecordingDefaults.FollowCameraRole, "follow_optional"));
             AssignString(helper, "followTargetRole", FirstNonEmpty(blueprint.RecordingDefaults.FollowTargetRole, blueprint.ResolvePrimaryAgentRole(manifest), "hero"));
             AssignString(helper, "followTargetTeam", FirstNonEmpty(blueprint.RecordingDefaults.FollowTargetTeam, blueprint.ResolvePrimaryAgentTeam(manifest)));
-            AssignObjectReference(helper, "followTarget", heroAgent.transform);
             AssignStringArray(helper, "knownCameraRoleNames", new List<string>(cameraAnchors.Keys));
             AssignObjectReference(helper, "legacyCameraPositions", BuildLegacyCameraPositions(cameraAnchors, blueprint));
         }
@@ -393,19 +280,14 @@ namespace RLMovie.Editor
                     _ => ResolveCameraAnchor(cameraAnchors, cycleRole)
                 };
 
-                if (anchor != null)
-                {
-                    ordered.Add(anchor);
-                }
+                if (anchor != null) ordered.Add(anchor);
             }
 
             return ordered.ToArray();
         }
 
         private static void ConfigureHighlightTracker(
-            ScenarioHighlightTracker tracker,
-            ScenarioManifestData manifest,
-            ScenarioBlueprintData blueprint)
+            ScenarioHighlightTracker tracker, ScenarioManifestData manifest, ScenarioBlueprintData blueprint)
         {
             AssignString(tracker, "trackedAgentRole", FirstNonEmpty(blueprint.HighlightBindings.TrackedAgentRole, blueprint.ResolvePrimaryAgentRole(manifest), "hero"));
             AssignStringArray(tracker, "trackedAgentRoles", ScenarioConfigIO.ResolveHighlightTargetRoles(blueprint, manifest));
@@ -416,9 +298,7 @@ namespace RLMovie.Editor
         }
 
         private static void ConfigureOverlay(
-            ScenarioBroadcastOverlay overlay,
-            ScenarioManifestData manifest,
-            ScenarioBlueprintData blueprint)
+            ScenarioBroadcastOverlay overlay, ScenarioManifestData manifest, ScenarioBlueprintData blueprint)
         {
             AssignString(overlay, "targetAgentRole", FirstNonEmpty(blueprint.OverlayBindings.TargetAgentRole, blueprint.ResolvePrimaryAgentRole(manifest), "hero"));
             AssignStringArray(overlay, "targetAgentRoles", ScenarioConfigIO.ResolveOverlayTargetRoles(blueprint, manifest));
@@ -427,109 +307,25 @@ namespace RLMovie.Editor
             AssignString(overlay, "goalDescription", ScenarioConfigIO.ResolveOverlayObjective(manifest, blueprint));
         }
 
-        private static void ApplyReadabilityKit(
-            GameObject floor,
-            GameObject heroObject,
-            GameObject primaryTarget,
-            GameObject primaryHazard,
-            VisualDefaultsData visualDefaults)
-        {
-            if (visualDefaults == null || !visualDefaults.ApplyReadabilityKit)
-            {
-                return;
-            }
-
-            ApplyMaterialOrFallback(floor, visualDefaults.FloorMaterial, new Color(0.17f, 0.21f, 0.26f));
-            ApplyMaterialOrFallback(heroObject, visualDefaults.HeroMaterial, new Color(0.92f, 0.83f, 0.28f));
-            ApplyMaterialOrFallback(primaryTarget, visualDefaults.TargetMaterial, new Color(0.22f, 0.92f, 0.56f));
-            if (primaryHazard != null)
-            {
-                ApplyMaterialOrFallback(primaryHazard, visualDefaults.HazardMaterial, new Color(0.93f, 0.34f, 0.22f));
-            }
-        }
-
-        private static void ApplyMaterialOrFallback(GameObject targetObject, string materialName, Color fallbackColor)
-        {
-            if (targetObject == null)
-            {
-                return;
-            }
-
-            Renderer renderer = targetObject.GetComponentInChildren<Renderer>();
-            if (renderer == null)
-            {
-                return;
-            }
-
-            Material material = TryLoadMaterial(materialName);
-            if (material != null)
-            {
-                renderer.sharedMaterial = material;
-                return;
-            }
-
-            renderer.sharedMaterial.color = fallbackColor;
-        }
-
         private static Material TryLoadMaterial(string materialName)
         {
-            if (string.IsNullOrWhiteSpace(materialName))
-            {
-                return null;
-            }
-
-            string materialPath = $"{CommonMaterialsRoot}/{materialName}.mat";
-            return AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+            if (string.IsNullOrWhiteSpace(materialName)) return null;
+            return AssetDatabase.LoadAssetAtPath<Material>($"{CommonMaterialsRoot}/{materialName}.mat");
         }
 
-        private static void AddCameraRoleBinding(ICollection<ScenarioGoldenSpine.CameraRoleBinding> bindings, string role, Transform anchor)
-        {
-            if (string.IsNullOrWhiteSpace(role) || anchor == null)
-            {
-                return;
-            }
-
-            bindings.Add(new ScenarioGoldenSpine.CameraRoleBinding
-            {
-                role = role,
-                anchor = anchor
-            });
-        }
-
-        private static string FirstNonEmpty(params string[] values)
+        internal static string FirstNonEmpty(params string[] values)
         {
             for (int i = 0; i < values.Length; i++)
             {
-                if (!string.IsNullOrWhiteSpace(values[i]))
-                {
-                    return values[i];
-                }
+                if (!string.IsNullOrWhiteSpace(values[i])) return values[i];
             }
-
             return string.Empty;
-        }
-
-        private static string ToDisplayName(string role, string fallback)
-        {
-            string source = FirstNonEmpty(role, fallback);
-            if (string.IsNullOrWhiteSpace(source))
-            {
-                return fallback;
-            }
-
-            string[] parts = source.Split(new[] { '_', '-', ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0)
-            {
-                return fallback;
-            }
-
-            return string.Concat(parts.Select(part => char.ToUpperInvariant(part[0]) + part.Substring(1)));
         }
 
         private static void EnsureAssetFoldersForScene(string scenePath)
         {
             string normalizedPath = scenePath.Replace('\\', '/');
-            string folderPath = Path.GetDirectoryName(normalizedPath)?.Replace('\\', '/');
+            string folderPath = System.IO.Path.GetDirectoryName(normalizedPath)?.Replace('\\', '/');
             if (string.IsNullOrWhiteSpace(folderPath) || !folderPath.StartsWith("Assets/", StringComparison.Ordinal))
             {
                 throw new ArgumentException($"Scene path must stay under Assets/: {scenePath}", nameof(scenePath));
@@ -537,176 +333,213 @@ namespace RLMovie.Editor
 
             string[] parts = folderPath.Split('/');
             string currentPath = parts[0];
-
             for (int i = 1; i < parts.Length; i++)
             {
                 string nextPath = $"{currentPath}/{parts[i]}";
                 if (!AssetDatabase.IsValidFolder(nextPath))
-                {
                     AssetDatabase.CreateFolder(currentPath, parts[i]);
-                }
-
                 currentPath = nextPath;
             }
         }
 
-        private static void AssignObjectReference(UnityEngine.Object target, string propertyName, UnityEngine.Object value)
+        #endregion
+
+        #region Serialized Property Helpers
+
+        internal static void AssignObjectReference(UnityEngine.Object target, string propertyName, UnityEngine.Object value)
         {
             var serializedObject = new SerializedObject(target);
             SerializedProperty property = serializedObject.FindProperty(propertyName);
-            if (property == null)
-            {
-                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
-            }
-
+            if (property == null) throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
             property.objectReferenceValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void AssignObjectReference(UnityEngine.Object target, string propertyName, UnityEngine.Object[] values)
+        internal static void AssignObjectReference(UnityEngine.Object target, string propertyName, UnityEngine.Object[] values)
         {
             var serializedObject = new SerializedObject(target);
             SerializedProperty property = serializedObject.FindProperty(propertyName);
-            if (property == null)
-            {
-                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
-            }
-
+            if (property == null) throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
             property.arraySize = values.Length;
             for (int i = 0; i < values.Length; i++)
-            {
                 property.GetArrayElementAtIndex(i).objectReferenceValue = values[i];
-            }
-
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void AssignBool(UnityEngine.Object target, string propertyName, bool value)
+        internal static void AssignBool(UnityEngine.Object target, string propertyName, bool value)
         {
             var serializedObject = new SerializedObject(target);
             SerializedProperty property = serializedObject.FindProperty(propertyName);
-            if (property == null)
-            {
-                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
-            }
-
+            if (property == null) throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
             property.boolValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void AssignFloat(UnityEngine.Object target, string propertyName, float value)
+        internal static void AssignFloat(UnityEngine.Object target, string propertyName, float value)
         {
             var serializedObject = new SerializedObject(target);
             SerializedProperty property = serializedObject.FindProperty(propertyName);
-            if (property == null)
-            {
-                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
-            }
-
+            if (property == null) throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
             property.floatValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void AssignString(UnityEngine.Object target, string propertyName, string value)
+        internal static void AssignString(UnityEngine.Object target, string propertyName, string value)
         {
             var serializedObject = new SerializedObject(target);
             SerializedProperty property = serializedObject.FindProperty(propertyName);
-            if (property == null)
-            {
-                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
-            }
-
+            if (property == null) throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
             property.stringValue = value;
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
 
-        private static void AssignStringArray(UnityEngine.Object target, string propertyName, IReadOnlyList<string> values)
+        internal static void AssignStringArray(UnityEngine.Object target, string propertyName, IReadOnlyList<string> values)
         {
             var serializedObject = new SerializedObject(target);
             SerializedProperty property = serializedObject.FindProperty(propertyName);
-            if (property == null)
-            {
-                throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
-            }
-
+            if (property == null) throw new InvalidOperationException($"Property `{propertyName}` was not found on {target.GetType().Name}.");
             property.arraySize = values.Count;
             for (int i = 0; i < values.Count; i++)
-            {
                 property.GetArrayElementAtIndex(i).stringValue = values[i];
-            }
-
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
         }
+
+        #endregion
     }
 
-    public sealed class GoldenScenarioSceneContext
+    /// <summary>
+    /// Context returned by BuildScenarioBackbone.
+    /// Scenario-specific builders use this to add gameplay objects, then call FinalizeSpine and Save.
+    /// </summary>
+    public sealed class ScenarioBackboneContext
     {
-        public GoldenScenarioSceneContext(
+        private readonly string _scenePath;
+        private readonly Dictionary<string, Transform> _cameraAnchors;
+        private readonly Transform _overlayAnchor;
+
+        public ScenarioBackboneContext(
             Scene scene,
-            ScenarioGoldenSpine goldenSpine,
+            string scenePath,
+            ScenarioGoldenSpine spine,
             GameObject environmentRoot,
             EnvironmentManager environmentManager,
-            BaseRLAgent agent,
-            Transform primaryTarget,
-            Transform primaryHazard,
             Camera mainCamera,
             TrainingVisualizer trainingVisualizer,
             RecordingHelper recordingHelper,
             ScenarioBroadcastOverlay broadcastOverlay,
             ScenarioHighlightTracker highlightTracker,
             Transform defaultCameraView,
-            Transform[] recordingCameraViews,
+            Dictionary<string, Transform> cameraAnchors,
+            Transform overlayAnchor,
             ScenarioManifestData manifest,
             ScenarioBlueprintData blueprint)
         {
             Scene = scene;
-            GoldenSpine = goldenSpine;
+            _scenePath = scenePath;
+            Spine = spine;
             EnvironmentRoot = environmentRoot;
             EnvironmentManager = environmentManager;
-            Agent = agent;
-            PrimaryTarget = primaryTarget;
-            PrimaryHazard = primaryHazard;
             MainCamera = mainCamera;
             TrainingVisualizer = trainingVisualizer;
             RecordingHelper = recordingHelper;
             BroadcastOverlay = broadcastOverlay;
             HighlightTracker = highlightTracker;
             DefaultCameraView = defaultCameraView;
-            RecordingCameraViews = recordingCameraViews;
+            _cameraAnchors = cameraAnchors;
+            _overlayAnchor = overlayAnchor;
             Manifest = manifest;
             Blueprint = blueprint;
         }
 
         public Scene Scene { get; }
-
-        public ScenarioGoldenSpine GoldenSpine { get; }
-
+        public ScenarioGoldenSpine Spine { get; }
         public GameObject EnvironmentRoot { get; }
-
         public EnvironmentManager EnvironmentManager { get; }
-
-        public BaseRLAgent Agent { get; }
-
-        public Transform PrimaryTarget { get; }
-
-        public Transform PrimaryHazard { get; }
-
         public Camera MainCamera { get; }
-
         public TrainingVisualizer TrainingVisualizer { get; }
-
         public RecordingHelper RecordingHelper { get; }
-
         public ScenarioBroadcastOverlay BroadcastOverlay { get; }
-
         public ScenarioHighlightTracker HighlightTracker { get; }
-
         public Transform DefaultCameraView { get; }
-
-        public Transform[] RecordingCameraViews { get; }
-
         public ScenarioManifestData Manifest { get; }
-
         public ScenarioBlueprintData Blueprint { get; }
+
+        /// <summary>
+        /// Wires the spine with scene/agent/team/camera role bindings.
+        /// Call after all gameplay objects have been added to the scene.
+        /// </summary>
+        public void FinalizeSpine(
+            ScenarioGoldenSpine.SceneRoleBinding[] sceneRoles,
+            ScenarioGoldenSpine.AgentRoleBinding[] agentRoles,
+            ScenarioGoldenSpine.TeamRoleBinding[] teamRoles)
+        {
+            // Merge backbone scene roles with scenario-provided ones
+            var allSceneRoles = new List<ScenarioGoldenSpine.SceneRoleBinding>
+            {
+                new ScenarioGoldenSpine.SceneRoleBinding { role = "arena_root", target = EnvironmentRoot.transform },
+                new ScenarioGoldenSpine.SceneRoleBinding { role = "overlay_anchor", target = _overlayAnchor }
+            };
+            if (sceneRoles != null)
+            {
+                allSceneRoles.AddRange(sceneRoles);
+            }
+
+            // Build camera role bindings from backbone anchors
+            var cameraRoles = new List<ScenarioGoldenSpine.CameraRoleBinding>();
+            foreach (var kvp in _cameraAnchors)
+            {
+                if (kvp.Value == null) continue;
+
+                string cameraRole = kvp.Key switch
+                {
+                    var k when k == Blueprint.CameraRoles.DefaultCamera => "default_camera",
+                    var k when k == Blueprint.CameraRoles.Explain => "explain",
+                    var k when k == Blueprint.CameraRoles.WideA => "wide_a",
+                    var k when k == Blueprint.CameraRoles.WideB => "wide_b",
+                    var k when k == Blueprint.CameraRoles.FollowOptional => "follow_optional",
+                    var k when k == Blueprint.CameraRoles.ComparisonOptional => "comparison_optional",
+                    _ => kvp.Key
+                };
+
+                cameraRoles.Add(new ScenarioGoldenSpine.CameraRoleBinding { role = cameraRole, anchor = kvp.Value });
+            }
+
+            // Ensure default_camera is present
+            if (DefaultCameraView != null && !cameraRoles.Exists(c => c.role == "default_camera"))
+            {
+                cameraRoles.Insert(0, new ScenarioGoldenSpine.CameraRoleBinding { role = "default_camera", anchor = DefaultCameraView });
+            }
+
+            Spine.Configure(
+                EnvironmentRoot.transform,
+                EnvironmentManager,
+                TrainingVisualizer,
+                RecordingHelper,
+                BroadcastOverlay,
+                HighlightTracker,
+                allSceneRoles.ToArray(),
+                agentRoles ?? Array.Empty<ScenarioGoldenSpine.AgentRoleBinding>(),
+                teamRoles ?? Array.Empty<ScenarioGoldenSpine.TeamRoleBinding>(),
+                cameraRoles.ToArray());
+        }
+
+        /// <summary>
+        /// Sets the target agent for the TrainingVisualizer.
+        /// Call after adding the agent to the scene.
+        /// </summary>
+        public void ConfigureTrainingVisualizer(BaseRLAgent agent)
+        {
+            GoldenScenarioSceneBuilder.AssignObjectReference(TrainingVisualizer, "targetAgent", agent);
+        }
+
+        /// <summary>
+        /// Saves the scene and refreshes the asset database.
+        /// </summary>
+        public void Save()
+        {
+            EditorSceneManager.SaveScene(Scene, _scenePath);
+            AssetDatabase.SaveAssets();
+            AssetDatabase.Refresh();
+        }
     }
 }

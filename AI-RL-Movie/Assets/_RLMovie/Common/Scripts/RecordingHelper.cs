@@ -100,7 +100,7 @@ namespace RLMovie.Common
 
         private void Awake()
         {
-            if (IsHeadlessRuntime())
+            if (RLMovieRuntime.IsHeadless)
             {
                 enabled = false;
                 return;
@@ -112,7 +112,7 @@ namespace RLMovie.Common
 
         private void Start()
         {
-            if (!autoPreviewCamerasInPlayMode || IsHeadlessRuntime())
+            if (!autoPreviewCamerasInPlayMode || RLMovieRuntime.IsHeadless)
             {
                 return;
             }
@@ -238,7 +238,7 @@ namespace RLMovie.Common
 
         public void TriggerTemporaryBlackout(float startDelay, float duration, bool holdUntilClear = false)
         {
-            if (!enableTemporaryBlackoutCuts || IsHeadlessRuntime())
+            if (!enableTemporaryBlackoutCuts || RLMovieRuntime.IsHeadless)
             {
                 return;
             }
@@ -331,7 +331,7 @@ namespace RLMovie.Common
 
         private void UpdateTemporaryBlackout()
         {
-            if (!enableTemporaryBlackoutCuts || IsHeadlessRuntime())
+            if (!enableTemporaryBlackoutCuts || RLMovieRuntime.IsHeadless)
             {
                 return;
             }
@@ -774,7 +774,7 @@ namespace RLMovie.Common
             return collider.GetComponentInChildren<Renderer>();
         }
 
-        private static bool IsHeadlessRuntime()
+        private static bool RLMovieRuntime.IsHeadless
         {
             return Application.isBatchMode || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null;
         }

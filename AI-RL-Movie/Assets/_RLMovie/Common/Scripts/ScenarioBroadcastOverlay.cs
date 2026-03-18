@@ -41,27 +41,11 @@ namespace RLMovie.Common
         private bool _runtimeUiEnabled = true;
 
 #if !UNITY_SERVER
-        private Texture2D _whiteTexture;
-
-        private Texture2D WhiteTexture
-        {
-            get
-            {
-                if (_whiteTexture == null)
-                {
-                    _whiteTexture = new Texture2D(1, 1);
-                    _whiteTexture.SetPixel(0, 0, Color.white);
-                    _whiteTexture.Apply();
-                }
-
-                return _whiteTexture;
-            }
-        }
 #endif
 
         private void Awake()
         {
-            _runtimeUiEnabled = !IsHeadlessRuntime();
+            _runtimeUiEnabled = !RLMovieRuntime.IsHeadless;
             if (!_runtimeUiEnabled)
             {
                 enabled = false;
@@ -227,10 +211,7 @@ namespace RLMovie.Common
 
         private void DrawRect(Rect rect, Color color)
         {
-            Color previous = GUI.color;
-            GUI.color = color;
-            GUI.DrawTexture(rect, WhiteTexture);
-            GUI.color = previous;
+            RLMovieIMGUI.DrawRect(rect, color);
         }
 #endif
 
@@ -287,43 +268,7 @@ namespace RLMovie.Common
 
             if (targetAgent == null)
             {
-                BaseRLAgent resolvedAgent;
-                if (!string.IsNullOrWhiteSpace(targetAgentRole)
-                    && spine.TryGetAgentRole(targetAgentRole, out resolvedAgent)
-                    && resolvedAgent != null)
-                {
-                    targetAgent = resolvedAgent;
-                }
-                else if (targetAgentRoles != null && targetAgentRoles.Length > 0)
-                {
-                    for (int i = 0; i < targetAgentRoles.Length; i++)
-                    {
-                        string role = targetAgentRoles[i];
-                        if (string.IsNullOrWhiteSpace(role))
-                        {
-                            continue;
-                        }
-
-                        if (spine.TryGetAgentRole(role, out resolvedAgent) && resolvedAgent != null)
-                        {
-                            targetAgent = resolvedAgent;
-                            break;
-                        }
-                    }
-                }
-
-                if (targetAgent == null
-                    && !string.IsNullOrWhiteSpace(targetAgentTeam)
-                    && spine.TryGetPrimaryAgentForTeam(targetAgentTeam, out resolvedAgent)
-                    && resolvedAgent != null)
-                {
-                    targetAgent = resolvedAgent;
-                }
-
-                if (targetAgent == null)
-                {
-                    targetAgent = spine.PrimaryAgent;
-                }
+                targetAgent = spine.ResolveAgentByPriority(targetAgentRole, targetAgentRoles, targetAgentTeam);
             }
 
             if (highlightTracker == null)
@@ -444,10 +389,7 @@ namespace RLMovie.Common
             return reason.Replace('_', ' ');
         }
 
-        private static bool IsHeadlessRuntime()
-        {
-            return Application.isBatchMode || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null;
-        }
+
 
         private struct RewardPopup
         {

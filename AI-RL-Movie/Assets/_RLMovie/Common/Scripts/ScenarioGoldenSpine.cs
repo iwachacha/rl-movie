@@ -249,6 +249,36 @@ namespace RLMovie.Common
             return false;
         }
 
+        /// <summary>
+        /// Resolves an agent using a priority chain: role → roles[] → team → PrimaryAgent.
+        /// Shared by Overlay, HighlightTracker, and other consumers that need a target agent.
+        /// </summary>
+        public BaseRLAgent ResolveAgentByPriority(string role, string[] roles, string team)
+        {
+            if (!string.IsNullOrWhiteSpace(role) && TryGetAgentRole(role, out BaseRLAgent agent) && agent != null)
+            {
+                return agent;
+            }
+
+            if (roles != null)
+            {
+                for (int i = 0; i < roles.Length; i++)
+                {
+                    if (!string.IsNullOrWhiteSpace(roles[i]) && TryGetAgentRole(roles[i], out agent) && agent != null)
+                    {
+                        return agent;
+                    }
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(team) && TryGetPrimaryAgentForTeam(team, out agent) && agent != null)
+            {
+                return agent;
+            }
+
+            return PrimaryAgent;
+        }
+
         private BaseRLAgent GetAgentRole(string role)
         {
             return TryGetAgentRole(role, out BaseRLAgent agent) ? agent : null;
