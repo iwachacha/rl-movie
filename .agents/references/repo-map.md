@@ -4,6 +4,7 @@
 
 - `AI-RL-Movie/Assets/_RLMovie/`
   - `Common/`: 共通コードと editor utilities
+    - `Common/Scripts/InWorldDisplay/`: シーン内情報表示の共通部品
   - `Environments/<Scenario>/`: 各シナリオ本体
   - `Environments/_Template/`: V2 共通スターターの generator source
   - `Recording/`: Recorder 関連

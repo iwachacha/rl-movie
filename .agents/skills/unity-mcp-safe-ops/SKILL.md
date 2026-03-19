@@ -46,7 +46,7 @@ When uncertain, favor safety over speed.
 ## Common Risk Areas
 
 - Missing serialized references on `BaseRLAgent` children.
-- `TrainingVisualizer.targetAgent` not assigned.
+- `TrainingVisualizer.targetAgent` not assigned (auto-resolves via GoldenSpine, but explicit assignment is preferred for clarity).
 - `RecordingHelper` camera positions fewer than expected.
 - `Behavior Name`, manifest values, and training YAML drifting apart.
 - Prefab or scene hierarchy names diverging from established scenario patterns.

@@ -17,7 +17,7 @@
 - `Behavior Name` が Agent クラス名と training YAML の behaviors キーに一致する
 - manifest の `agent_class` と `behavior_name` がシーン上の Agent と一致する
 - Agent の object reference 系 `SerializeField` が未設定でない
-- `TrainingVisualizer` が存在し、`targetAgent` が現在シーンの Agent を向いている
+- `TrainingVisualizer` が存在し、`targetAgent` がシーンの Agent を向いている（GoldenSpine 経由の自動解決も可）
 - `RecordingHelper` が存在する
 - `RecordingHelper` で camera switching を有効にするなら camera positions は 2 個以上にする
 

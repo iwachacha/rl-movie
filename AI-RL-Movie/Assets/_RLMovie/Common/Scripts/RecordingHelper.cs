@@ -774,11 +774,6 @@ namespace RLMovie.Common
             return collider.GetComponentInChildren<Renderer>();
         }
 
-        private static bool RLMovieRuntime.IsHeadless
-        {
-            return Application.isBatchMode || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null;
-        }
-
         private void ApplyTemporaryBlackoutState()
         {
             if (_mainCamera == null)

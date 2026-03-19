@@ -109,6 +109,7 @@ namespace RLMovie.Editor
             ConfigureRecordingHelper(recordingHelper, goldenSpine, cameraAnchors, manifest, blueprint);
             ConfigureHighlightTracker(highlightTracker, manifest, blueprint);
             ConfigureOverlay(broadcastOverlay, manifest, blueprint);
+            ConfigureTrainingVisualizerRoles(trainingVisualizer, manifest, blueprint);
 
             return new ScenarioBackboneContext(
                 scene,
@@ -295,6 +296,14 @@ namespace RLMovie.Editor
             AssignString(tracker, "scenarioLabel", manifest.ScenarioName);
             AssignBool(tracker, "exportHighlightsToJsonl", blueprint.HighlightBindings.ExportHighlightsToJsonl);
             AssignBool(tracker, "exportSnapshotsToJsonl", blueprint.HighlightBindings.ExportSnapshotsToJsonl);
+        }
+
+        private static void ConfigureTrainingVisualizerRoles(
+            TrainingVisualizer visualizer, ScenarioManifestData manifest, ScenarioBlueprintData blueprint)
+        {
+            string primaryRole = FirstNonEmpty(blueprint.ResolvePrimaryAgentRole(manifest), "hero");
+            AssignString(visualizer, "targetAgentRole", primaryRole);
+            AssignString(visualizer, "targetAgentTeam", blueprint.OverlayBindings.TargetAgentTeam);
         }
 
         private static void ConfigureOverlay(

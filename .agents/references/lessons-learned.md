@@ -51,3 +51,15 @@ Preferred format:
 - Trigger: when adopting a model, rejecting a run, or handing results to a later step
 - Action: archive the `.onnx`, `run_summary.json`, and short evaluation notes under `RunArchive/<scenario>/runs/<run_id>/`
 - Why: model decisions should depend on durable evidence instead of chat memory
+
+## Common Component Consistency
+
+- Trigger: when adding a new backbone-aware component or patching an existing one
+- Action: ensure auto-resolve via `ScenarioGoldenSpine` follows the same pattern (role/roles/team + `TryAutoResolveReferences` in `Awake`/`Update`)
+- Why: inconsistent resolution patterns cause wiring bugs that only surface in specific scene configurations
+
+## Headless Mode Granularity
+
+- Trigger: when deciding what to disable under `RLMovieRuntime.IsHeadless`
+- Action: disable only UI and rendering features; keep data export (JSONL, telemetry) active
+- Why: headless training in Colab still benefits from structured telemetry output for post-hoc analysis

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -12,6 +13,9 @@ namespace RLMovie.Common
     {
         [Header("=== Visualizer Settings ===")]
         [SerializeField] private BaseRLAgent targetAgent;
+        [SerializeField] private string targetAgentRole = "hero";
+        [SerializeField] private string[] targetAgentRoles = Array.Empty<string>();
+        [SerializeField] private string targetAgentTeam = string.Empty;
         [SerializeField] private bool showUI = true;
 
         [Header("=== Graph Settings ===")]
@@ -38,11 +42,16 @@ namespace RLMovie.Common
             if (!runtimeUiEnabled)
             {
                 enabled = false;
+                return;
             }
+
+            TryAutoResolveTargetAgent();
         }
 
         private void Update()
         {
+            TryAutoResolveTargetAgent();
+
             if (!runtimeUiEnabled || targetAgent == null)
             {
                 return;
@@ -156,6 +165,20 @@ namespace RLMovie.Common
             RLMovieIMGUI.DrawRect(rect, color);
         }
 #endif
+
+        private void TryAutoResolveTargetAgent()
+        {
+            if (targetAgent != null)
+            {
+                return;
+            }
+
+            var spine = GetComponentInParent<ScenarioGoldenSpine>();
+            if (spine != null)
+            {
+                targetAgent = spine.ResolveAgentByPriority(targetAgentRole, targetAgentRoles, targetAgentTeam);
+            }
+        }
 
         private void RecalculateRewardBounds()
         {

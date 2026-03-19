@@ -13,10 +13,12 @@ The first job is to make the common layer broadly reusable across many scene pat
 - Use `scenario_manifest.yaml` and `scenario_blueprint.yaml` as the default contract pair.
 - Build agents on `BaseRLAgent` unless there is a concrete reason not to.
 - Use `ScenarioGoldenSpine` for shared references, role bindings, teams, and camera roles.
-- Reuse `RecordingHelper`, `ScenarioBroadcastOverlay`, `ScenarioHighlightTracker`, and `TrainingVisualizer` before creating custom recording or HUD code.
+- Reuse `RecordingHelper`, `ScenarioBroadcastOverlay`, `ScenarioHighlightTracker`, and `TrainingVisualizer` before creating custom recording or HUD code. All three of `TrainingVisualizer`, `ScenarioBroadcastOverlay`, and `ScenarioHighlightTracker` auto-resolve their target agent via `ScenarioGoldenSpine` role bindings, so explicit inspector wiring is optional when a spine is present.
 - Reuse `EnvironmentManager` for simple bounds, fall checks, and spawn randomization unless the task clearly needs a different environment controller.
+- `ScenarioHighlightTracker` continues to export JSONL highlight and snapshot data even in headless (Colab) mode; only UI banner display is disabled.
 - Reuse `ScenarioValidator`, `BuildForColab`, and `ImportTrainedModel` instead of custom validation, export, or import flows.
 - Use the V2 readability kit as the minimum visual baseline before adding scene-specific art direction.
+- Use `InWorldDisplay` components (`EpisodeCountDisplay`, `EpisodeTimerDisplay`, `RewardGraphDisplay`, `CumulativeRewardDisplay`, `SuccessRateDisplay`) for environment-blending training info panels. Attach to any Quad/Plane with a Renderer. Auto-resolves agent via GoldenSpine.
 
 ## Required Design Check
 

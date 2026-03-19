@@ -33,7 +33,7 @@ Use this file during Unity MCP scene work.
 - Confirm `BehaviorParameters` and `DecisionRequester` remain attached.
 - Confirm `Behavior Name` still matches the agent class and training YAML.
 - Confirm any new `SerializeField` object references are assigned.
-- Confirm `TrainingVisualizer.targetAgent` still points to a live agent.
+- Confirm `TrainingVisualizer.targetAgent` still points to a live agent (auto-resolves via GoldenSpine if null).
 
 ## Validation Loop
 

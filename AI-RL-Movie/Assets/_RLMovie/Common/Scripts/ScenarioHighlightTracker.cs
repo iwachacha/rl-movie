@@ -56,15 +56,12 @@ namespace RLMovie.Common
         private bool _exportPathsReady;
         private bool _loggedExportFailure;
         private bool _runtimeTrackingEnabled = true;
+        private bool _runtimeUiEnabled = true;
 
         private void Awake()
         {
-            _runtimeTrackingEnabled = !RLMovieRuntime.IsHeadless;
-            if (!_runtimeTrackingEnabled)
-            {
-                enabled = false;
-                return;
-            }
+            _runtimeUiEnabled = !RLMovieRuntime.IsHeadless;
+            _runtimeTrackingEnabled = true;
 
             TryAutoResolveReferences();
         }
@@ -92,7 +89,7 @@ namespace RLMovie.Common
 
         public bool TryGetActiveHighlight(out ScenarioHighlightRecord highlight)
         {
-            if (_hasLatestHighlight && Time.realtimeSinceStartup <= _latestHighlightExpiresAt)
+            if (_runtimeUiEnabled && _hasLatestHighlight && Time.realtimeSinceStartup <= _latestHighlightExpiresAt)
             {
                 highlight = _latestHighlight;
                 return true;
