@@ -1,271 +1,261 @@
-# Active Ragdoll キャラクターシステム設計
+# Boss Room × RL Movie マルチエージェント統合戦略 (v3)
 
-AI Warehouse 風の「ふにゃふにゃ物理キャラ」を**Common 層の共通部品**として設計し、各シナリオで「移動の仕方」を再学習せずにタスクテーマに集中できるようにする。
-
-## コア設計思想
-
-```
-学習対象 = タスク判断（どこへ行くか / 何をするか）のみ
-面白い動き = 物理シミュレーション × Active Ragdoll 関節バネ が自動生成
-```
-
-「ふにゃふにゃ」の面白さは **ConfigurableJoint の低バネ定数** が生む物理的な不安定さと、衝突・慣性によるリアクションから自然に発生する。歩行を学習させる必要はない。
+Boss Room（UCL）をRL Movieプロジェクトに取り込み、**ボスアリーナ戦**にフォーカスしたマルチエージェント強化学習を動画化する。
 
 ---
 
-## アーキテクチャ
+## 1. 調査結果サマリ
 
-```
-┌──────────────────────────────────────────────┐
-│  シナリオ Agent（各回固有、BaseRLAgent 継承）   │
-│  ─ 学習: 移動方向、インタラクション判断         │
-│  ─ Action → character.Move(dir)              │
-│  ─ タスク報酬 / 成功・失敗判定                  │
-├──────────────────────────────────────────────┤
-│  ActiveRagdollController（Common 共通）        │
-│  ─ Move(Vector2) : 方向入力 → 力適用           │
-│  ─ 起き上がりバイアス（自動姿勢補正）            │
-│  ─ 転倒検知 → Agent に通知                     │
-│  ─ ふにゃふにゃ度パラメータ公開                  │
-├──────────────────────────────────────────────┤
-│  Ragdoll Prefab（物理ボディ）                   │
-│  ─ 腰(Root) + 胸 + 頭 + 上腕×2 + 前腕×2       │
-│    + 太腿×2 + 脛×2 = 10パーツ                  │
-│  ─ ConfigurableJoint × 9                      │
-│  ─ Rigidbody × 10                             │
-│  ─ CapsuleCollider / SphereCollider × 10      │
-└──────────────────────────────────────────────┘
-```
+| 項目 | 内容 |
+|------|------|
+| ライセンス | UCL — 動画利用OK（[前回会話で確認済み](file:///c:/rl-movie/docs)) |
+| Unity版 | Unity 6 LTS — 現プロジェクト 6000.3.10f1 と互換 |
+| コード構造 | Client / Server / Shared 3アセンブリ（domain-based） |
+| キャラ | Archer, Mage, Rogue, Warrior（各2スキン） |
+| 敵 | Imp（ウェーブスポーン）, Boss |
+| 主要依存 | **NGO**, **VContainer** (DI), AI Navigation, Cinemachine, Input System, UGS (Relay/Lobby/Auth) |
+| アート | スタイライズドRPGダンジョン（高品質） |
+| ゲーム速度 | FixedUpdate 30Hz, server-authoritative click-to-move |
 
 ---
 
-## 提案する変更
+## 2. 戦略的方針
 
-### Common 層の新規追加
+### 2.1 ネットワーク層のオフライン化
 
----
+**方針**: NGOを除去せず、**Host モード固定**でローカル完結させる。
 
-#### [NEW] [ActiveRagdollController.cs](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Scripts/ActiveRagdollController.cs)
+- `NetworkManager.StartHost()` 直接呼出し → UGS/Relay/Lobby/Auth バイパス
+- `NetworkVariable` / RPC / `NetworkTransform` は Host モードで正常動作 → ゲームロジック改変最小
+- 接続 UI / マッチメイキングシーンは除外
 
-Active Ragdoll の物理制御を司る MonoBehaviour。**Agent から分離**し、どのシナリオからでも同じキャラを使える。
+> [!WARNING]
+> **学習速度リスク**: NGO の `NetworkManager` が Host モードでもフレームごとに同期処理を走らせるため、高速シミュレーションのボトルネックになる可能性がある。そのため **2モード構成** を採用する:
+> - **学習時**: NGO 除去した軽量ビルド（ゲームロジックのみ）
+> - **録画時**: NGO Host モードのフルビジュアル版（アニメ・エフェクトが正常に動く）
 
-**主な責務:**
+### 2.2 選択的ファイル取り込み
 
-| 機能 | 説明 |
-|---|---|
-| `Move(Vector2 direction)` | 入力方向に腰 Rigidbody へ力を加える。Agent の `ExecuteActions` から呼ぶ |
-| `ApplyUprightBias()` | 毎フレーム、腰に起き上がりトルクを適用（完全に倒れなくする） |
-| [HasFallen](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Scripts/EnvironmentManager.cs#105-110) プロパティ | 腰の傾きが閾値を超えたら `true`。Agent が [Fail()](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Scripts/BaseRLAgent.cs#197-218) の判定に使う |
-| `ResetPose()` | 全パーツを初期位置・初期回転・速度ゼロにリセット |
-| `Wobbliness` (0–1) | ふにゃふにゃ度。0 = 硬い（学習テーマ集中）、1 = 最大フラフラ（動画映え） |
+**取り込む**:
 
-**公開パラメータ（Inspector / ランダム化対応）:**
+| カテゴリ | Boss Room パス | 理由 |
+|----------|---------------|------|
+| ゲームロジック | `Assets/Scripts/Gameplay/` | Action system, Character, AI, GameplayObjects |
+| ScriptableObjects | `Assets/ScriptableObjects/` | キャラ・アクション定義データ |
+| AI | `Assets/Scripts/Gameplay/GameplayObjects/Character/AI/` | Imp/Boss AI（ベースライン比較） |
+| アート・シーン | `Assets/Scenes/`, `Assets/Prefabs/`, `Assets/Art/`, `Assets/Animations/` | ビジュアル |
+| VContainer 設定 | DI の LifetimeScope 定義 | ゲームロジック起動に必須 |
 
-```csharp
-[Header("=== Active Ragdoll Settings ===")]
-[Range(0f, 1f)]   float wobbliness = 0.5f;        // ふにゃふにゃ度
-[Range(50, 500)]  float moveForce = 200f;          // 移動力
-[Range(10, 300)]  float uprightSpringForce = 100f;  // 起き上がりバネ力
-[Range(0, 50)]    float uprightDamper = 10f;        // 姿勢ダンパー
-                  float fallAngleThreshold = 70f;   // 転倒判定角度
-```
+**取り込まない**:
 
-**`Wobbliness` の内部マッピング:**
+| カテゴリ | 理由 |
+|----------|------|
+| `Assets/Scripts/ConnectionManagement/` | ネットワーク接続不要 |
+| `Assets/Scripts/UnityServices/` | UGS 不要 |
+| `Assets/Scripts/ApplicationLifecycle/` | セッション管理不要 |
+| ネットワーク UI 一式 | マッチメイキング不要 |
+| `Packages/com.unity.multiplayer.samples.coop/` | 必要分のみローカルコピー |
 
-```
-wobbliness = 0.0 → jointSpring = 500, uprightForce = 300  （ほぼ剛体）
-wobbliness = 0.5 → jointSpring = 150, uprightForce = 100  （AI Warehouse 風）
-wobbliness = 1.0 → jointSpring =  30, uprightForce =  30  （最大ふにゃふにゃ）
-```
+### 2.3 追加パッケージ
 
----
-
-#### [NEW] [RagdollBodyPartLabel.cs](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Scripts/RagdollBodyPartLabel.cs)
-
-各ボディパーツに付けるタグ用の軽量コンポーネント。衝突判定やパーツ操作時にパーツの役割を識別する。
-
-```csharp
-public enum BodyPartType { Hips, Chest, Head, UpperArmL, UpperArmR, ForearmL, ForearmR, ThighL, ThighR, ShinL, ShinR }
-```
-
----
-
-#### [NEW] [ActiveRagdollPrefab](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Prefabs/) — Prefab (Unity Editor / MCP で作成)
-
-**パーツ構成（10パーツ・最小構成）:**
-
-```
-Hips (Root, Rigidbody, CapsuleCollider)
- ├── Chest (ConfigurableJoint → Hips)
- │    ├── Head (ConfigurableJoint → Chest, SphereCollider)
- │    ├── UpperArmL (ConfigurableJoint → Chest)
- │    │    └── ForearmL (ConfigurableJoint → UpperArmL)
- │    └── UpperArmR (ConfigurableJoint → Chest)
- │         └── ForearmR (ConfigurableJoint → UpperArmR)
- ├── ThighL (ConfigurableJoint → Hips)
- │    └── ShinL (ConfigurableJoint → ThighL)
- └── ThighR (ConfigurableJoint → Hips)
-      └── ShinR (ConfigurableJoint → ThighR)
-```
-
-**ConfigurableJoint 共通設定:**
-
-| パラメータ | 値 |
-|---|---|
-| X/Y/Z Motion | Locked |
-| Angular X/Y/Z Motion | Limited |
-| Angular X Limit | ±45° (膝: 0〜90°) |
-| Angular YZ Limit | ±30° |
-| Angular X Drive Spring | `Wobbliness` で制御 |
-| Angular X Drive Damper | Spring の 0.2倍 |
-| Target Rotation | 初期ポーズ |
-
-**Rigidbody 質量配分:**
-
-| パーツ | 質量 (kg) | 備考 |
-|---|---|---|
-| Hips | 8.0 | 重心＝安定性の源 |
-| Chest | 6.0 | |
-| Head | 3.0 | 重め = リアクション大 |
-| UpperArm | 1.5 | |
-| Forearm | 1.0 | |
-| Thigh | 3.0 | |
-| Shin | 2.0 | |
-
-> [!TIP]
-> 重心を低く保つ（Hips が最重）ことで、起き上がりバイアスが弱くても自然に立ちやすくなる。
-
----
-
-### 共通バックボーン計画
-
-| 区分 | 対象 |
-|---|---|
-| **そのまま再利用** | [BaseRLAgent](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Scripts/BaseRLAgent.cs#15-366), [EnvironmentManager](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Scripts/EnvironmentManager.cs#18-232), `ScenarioGoldenSpine`, `RecordingHelper`, `ScenarioBroadcastOverlay`, `ScenarioHighlightTracker`, `TrainingVisualizer`, `InWorldDisplay` 群 |
-| **設定のみ変更** | [scenario_manifest.yaml](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Environments/_Template/Config/scenario_manifest.yaml) テンプレート（`observation_contract` にラグドール姿勢情報を追加、`randomization_knobs` に `wobbliness` を追加） |
-| **Common に新規追加** | `ActiveRagdollController.cs`, `RagdollBodyPartLabel.cs`, Active Ragdoll Prefab |
-| **シナリオローカル** | 各シナリオの Agent クラス（タスク固有の報酬・観測・成功判定） |
-
----
-
-## シナリオ Agent からの使い方（例）
-
-```csharp
-public class FoodCollectorAgent : BaseRLAgent
-{
-    ActiveRagdollController ragdoll;
-
-    protected override void OnAgentInitialize()
-    {
-        ragdoll = GetComponentInChildren<ActiveRagdollController>();
-    }
-
-    protected override void OnEpisodeReset()
-    {
-        ragdoll.ResetPose();
-    }
-
-    protected override void CollectAgentObservations(VectorSensor sensor)
-    {
-        // タスク固有の観測（食べ物の位置等）
-        sensor.AddObservation(targetRelativePos);
-        // ラグドール姿勢（共通）
-        sensor.AddObservation(ragdoll.HipsUp);          // 腰の上方向 (3)
-        sensor.AddObservation(ragdoll.HipsVelocity);    // 腰の速度 (3)
-        sensor.AddObservation(ragdoll.TiltAngle / 90f); // 傾き (1)
-    }
-
-    protected override void ExecuteActions(ActionBuffers actions)
-    {
-        // 学習するのは「どこに向かうか」だけ
-        ragdoll.Move(new Vector2(
-            actions.ContinuousActions[0],
-            actions.ContinuousActions[1]));
-
-        // 転倒チェック
-        if (ragdoll.HasFallen)
-            Fail(-0.5f, "fell_down", "転倒した！");
-    }
-}
-```
-
----
-
-## 観測空間への影響
-
-ラグドール使用時、Agent は以下の**共通姿勢観測**を追加する（各シナリオ共通）：
-
-| 観測 | 次元 | 説明 |
-|---|---|---|
-| `hipsUp` | 3 | 腰の上方向ベクトル（World） |
-| `hipsVelocity` | 3 | 腰の速度 |
-| `tiltAngle` | 1 | 正規化された傾き角度 (0=直立, 1=完全転倒) |
-
-合計 **+7 次元**（シナリオ固有の観測に追加される）
-
----
-
-## ランダム化ノブ
-
-[scenario_manifest.yaml](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Environments/_Template/Config/scenario_manifest.yaml) に追加される新しいノブ：
-
-```yaml
-randomization_knobs:
-  - name: ragdoll.wobbliness
-    purpose: "ふにゃふにゃ度。低い=安定、高い=面白い動き"
-    default: "0.5"
-  - name: ragdoll.moveForce
-    purpose: "移動力。高いと勢いで転びやすい"
-    default: "200"
-```
-
----
-
-## 動画映えのポイント
-
-| AI Warehouse 的面白さ | この設計でどう実現するか |
-|---|---|
-| ぐにゃぐにゃ感 | `wobbliness=0.5` での低バネ ConfigurableJoint |
-| 転びそうで転ばない | 起き上がりバイアス + 低重心設計 |
-| 衝突リアクション | 各パーツの Collider が環境と物理衝突 |
-| 過剰な力で転ぶ | `moveForce` が高いと慣性で振り回される |
-| 失敗のコミカルさ | 転倒 → Fail → リセット のサイクル自体がハイライト |
-
----
-
-## User Review Required
-
-> [!IMPORTANT]
-> **パーツ数の判断**: 10パーツは「最小限で面白い動きが出る」構成です。5パーツ（腰+胸+脚×2+頭）にするとシンプルだが腕がない分リアクションが減ります。逆に指や足先を追加すると物理計算コストが増えます。10パーツで進めてよいですか？
-
-> [!IMPORTANT]
-> **ビジュアル**: Prefab のメッシュ表現について：
-> - **A. プリミティブ構成**（Capsule/Sphere の組み合わせ）→ すぐ作れるがシンプル
-> - **B. 無料アセット調査**（`unity-free-asset-research` で Ragdoll 向きキャラを探す）→ 見栄えが期待できるが時間がかかる
-> - **C. ProBuilder で簡易モデリング**→ 中間的な選択肢
->
-> 動画映えを考えると B が理想ですが、まずプリミティブで動きを確認し後でビジュアルを差し替える（A→B）の段階アプローチもあります。
-
-> [!IMPORTANT]
-> **歩行アニメーションの有無**: 現設計は「歩行モーションなし・力で滑るように移動」です。AI Warehouse の一部動画のように「脚を交互に動かして歩こうとする」見た目を出すには、脚にも周期的な力を加える仕組みが必要です。これは追加のオプション機能として後から入れることもできますが、初期スコープに入れますか？
-
----
-
-## 検証計画
-
-### Unity Editor 上の動作確認
-
-1. Prefab をシーンに配置して Play
-2. `ActiveRagdollController` の `Move()` をキー入力で呼び出すテストシーン
-3. `wobbliness` を 0 / 0.5 / 1.0 に変えて動きの変化を確認
-4. 衝突オブジェクトを置いてリアクションを確認
-5. 転倒検知が正しく動くことを確認
-
-### ユーザーによる手動確認
-
-- Prefab を Play モードで操作して「面白い動き」が出ているかの主観評価
-- `wobbliness` スライダーの変更でふにゃふにゃ度が直感的に変わることの確認
-- 衝突時のリアクションが自然かどうかの確認
+| パッケージ | 必須? | 備考 |
+|-----------|-------|------|
+| `com.unity.netcode.gameobjects` | 必須 | Boss Room コード基盤 |
+| `jp.hadashikick.vcontainer` (or OpenUPM) | 必須 | Boss Room の DI フレームワーク |
+| `com.unity.ai.navigation` | 必須 | Imp/Boss のパスファインディング |
+| `com.unity.cinemachine` | 推奨 | カメラ演出（録画品質向上） |
+| `com.unity.inputsystem` | 要確認 | 既存プロジェクトで使用中か確認 |
 
 > [!NOTE]
-> ユニットテストは物理挙動の主観評価が中心のため、自動テストより手動確認が主体です。ただし `ResetPose()` が正しく元の姿勢に戻るか等の基本動作は PlayMode テストで検証できます。
+> VContainer は Boss Room のコード全体に深く浸透している DI ライブラリ。取り除くには大規模リファクタが必要なため、パッケージごと導入するのが現実的。既存シナリオには影響しない。
+
+### 2.4 Common 基盤との関係
+
+**結論: Common の Agent/Spine テンプレートは使わず、BossRoom 専用スキャフォールドを採用する。**
+
+理由:
+1. Boss Room は既製ゲーム → Common の「ゼロから作るテンプレート」が合わない
+2. 4エージェント同時 → 現 Common は単一エージェント前提
+3. Action/Character/AI が独自アーキテクチャ → Common wiring に押し込めると逆に複雑
+
+**Common から部分再利用するもの**:
+- [RecordingHelper](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs#700-758) — 録画
+- `ScenarioBroadcastOverlay` — 視聴者オーバーレイ
+- `BuildForColab` / `ImportTrainedModel` — パイプライン
+
+> [!WARNING]
+> [ScenarioValidator](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs#15-1283) は `BaseRLAgent` と `ScenarioGoldenSpine` をハードコードで検索するため、**そのままでは BossRoom シーンで動かない**。Phase 2 で BossRoom専用の簡易バリデーションを作るか、Agent が `BaseRLAgent` を継承する薄いラッパーを作るかを検討する。
+
+**配置**:
+```
+Assets/_RLMovie/Environments/BossRoom/
+├── Config/
+│   ├── scenario_manifest.yaml
+│   └── BossRoom.yaml          # training YAML (MA-POCA)
+├── Scenes/
+│   └── BossRoom.unity
+├── Scripts/
+│   ├── BossRoomAgent.cs        # ML-Agents Agent
+│   ├── BossRoomGameManager.cs  # エピソードリセット・報酬・終了判定
+│   └── BossRoomBootstrap.cs    # Host自動起動・UGSバイパス
+├── Prefabs/
+└── ThirdParty/
+    └── BossRoom/               # 取り込んだコード・アセット
+```
+
+---
+
+## 3. マルチエージェント設計
+
+### 3.1 完全別脳アーキテクチャ
+
+各キャラクラスが **独立したニューラルネット（脳）** を持つ。4つの異なる [BehaviorName](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs#1203-1242) で 4 つの独立ポリシーを学習する。
+
+> [!IMPORTANT]
+> `SimpleMultiAgentGroup` に異なる [BehaviorName](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs#1203-1242) のエージェントを登録可能。チーム報酬は全員に配分され、各エージェントは **自分専用のポリシー** を独自に学習する。
+
+| BehaviorName | クラス | 行動空間 |
+|-------------|--------|----------|
+| `BossRoom_Archer` | Archer | 移動(連続×2), 通常射撃/AoEボレー/チャージショット/ターゲット選択 |
+| `BossRoom_Mage` | Mage | 移動(連続×2), ボルト/バフ/AoE魔法/ターゲット選択 |
+| `BossRoom_Rogue` | Rogue | 移動(連続×2), 近接攻撃/ステルス/ダッシュ攻撃/ターゲット選択 |
+| `BossRoom_Warrior` | Warrior | 移動(連続×2), 近接攻撃/シールド/チャージ/ターゲット選択 |
+
+各クラスのアクション分岐はそのクラスのスキルセットに **最適化** される（NOP不要）。
+
+**利点**:
+- 各クラスが **固有のプレイスタイルと個性** を発達させる → 動画映え
+- 行動空間に無駄な分岐がない → 学習効率向上
+- 「Warrior が前に出てタンク」「Rogue がステルスで裏取り」等の **ロール分化が自発的に起きやすい**
+
+### 3.2 観測空間
+
+観測空間は 4 クラス共通構造（各ポリシーが同じ情報を見る、ただし BehaviorName は別）:
+
+| 観測 | 次元 | 正規化方法 |
+|------|------|-----------|
+| 自キャラ位置 | 2 | arena bounds で正規化 |
+| 自キャラ向き | 2 | sin(θ), cos(θ) |
+| 自HP / MaxHP | 2 | 0-1 |
+| 自スキルクールダウン | 3 | 0-1 固定3枚（スキル不足分はゼロ埋め） |
+| 味方3体: 相対位置+HP+クラス+生存 | 24 | 相対座標(2)+HP(1)+one-hot(4)+生存(1) = 8×3 |
+| 最寄り敵5体: 相対位置+HP+タイプ | 20 | (2+1+1)×5, 敵不在はゼロ埋め |
+| ボス: 相対位置+HP+存在 | 4 | (2+1+1), ボス不在はゼロ |
+| **合計** | **57** | |
+
+> [!NOTE]
+> 全クラスで同じ観測次元に揃える（スキルクールダウンは3枚固定、実際のスキルが2つのクラスは3枚目をゼロ埋め）。学習結果を見て必要なら調整。
+
+### 3.3 報酬設計
+
+| イベント | 個別報酬 | チーム報酬 | 備考 |
+|----------|---------|-----------|------|
+| 敵にヒット | +0.02 | — | スパム防止で低め |
+| 敵撃破 | +0.1 | +0.05 | |
+| ボスにダメージ(HP 1%分) | +0.05 | +0.05 | |
+| **ボス撃破** | — | **+1.0** | 最大報酬 |
+| 味方リバイブ | +0.2 | — | 協力行動強化 |
+| 自分が倒れた | -0.2 | — | |
+| **全滅** | — | **-0.5** | 強すぎると回避学習に偏る |
+| ステップペナルティ | -0.0005 | — | 緩め（長いゲームのため） |
+
+### 3.4 カリキュラム（アリーナ方式）
+
+> [!IMPORTANT]
+> **フルダンジョン走破は廃止。ボスアリーナ戦にフォーカスする。** ダンジョンの部屋移動・ナビゲーション学習は最大の時間消費元であり、動画的にも戦闘シーンが最も映える。Boss Room のダンジョンアートはアリーナの背景・雰囲気として活用する。
+
+| Stage | 構成 | 成功条件 | 目的 |
+|-------|------|---------|------|
+| **0** | 4人 vs 3 Imp（アリーナ） | 全Imp撃破 | 基本戦闘 + チーム連携の基礎 |
+| **1** | 4人 vs Imp Wave (5→10体) | 全Wave撃破 | 波状攻撃への対応・ロール分化の萌芽 |
+| **2** | 4人 vs Boss (+ Imp増援) | **ボス撃破** | 最終目標・協力プレイの完成形 |
+
+### 3.5 学習時間削減の4施策
+
+| 施策 | 効果 | 詳細 |
+|------|------|------|
+| **DecisionPeriod = 5** | エピソードあたり意思決定数 **5分の1** | 毎フレーム判断せず5ステップごと。RPG戦闘には十分な粒度 |
+| **学習専用ビルド (NGO除去)** | シミュレーション速度 **2-4倍改善** | 学習時は NGO を完全スキップし簡易ゲームループで走らせる。録画時のみ NGO 有効 |
+| **並列環境 (×8-16)** | スループット **8-16倍** | Colab で複数環境インスタンスを同時実行 |
+| **小さいネットワーク** | 推論速度向上 | hidden_units=128, num_layers=2 から開始 |
+
+---
+
+## 4. 動画の魅力
+
+| 要素 | 内容 |
+|------|------|
+| **viewer_promise** | 「AIが4人パーティでRPGボスに挑む — 役割分担は勝手に生まれた」 |
+| **thumbnail_moment** | 4人AIがボスを囲んで総攻撃 / ボス撃破瞬間 |
+| **visual_hooks** | ロール分担の自発的発生、Warrior前衛、Rogueステルス裏取り、リバイブ、ボス撃破 |
+| **学習過程の見どころ** | 全員壁殴り → 1体ずつ戦い方を覚える → チーム行動の萌芽 → 見事な連携プレイ |
+
+---
+
+## 5. 改訂版の時間見積もり
+
+| Stage | 推定ステップ | 推定時間（Colab GPU, 並列×8） |
+|-------|------------|-----------------------------|
+| **0**: 4人 vs 3 Imp | 2-5M | **2-6時間** |
+| **1**: 4人 vs Wave | 5-20M | **6-24時間** |
+| **2**: 4人 vs Boss | 20-80M | **24-72時間** |
+| **合計** | — | **30-100時間（≒ 1.5-4日連続）** |
+
+> [!TIP]
+> v2 の 150-700 時間 → v3 では **30-100 時間** に圧縮。主な削減要因: アリーナ方式 (−60%), DecisionPeriod=5 (−80% 意思決定数), 並列環境 (×8 スループット)。
+
+---
+
+## 6. 実装フェーズ
+
+### Phase 1: 取り込みと最小動作 (~3-5日)
+1. Boss Room を clone（Git LFS 必須）
+2. 選択的ファイルコピー
+3. パッケージ追加（NGO, VContainer, AI Navigation, Cinemachine）
+4. `BossRoomBootstrap.cs` で Host 自動起動・UGS バイパス
+5. **ボスアリーナシーン** を Boss Room ダンジョンから切り出して構築
+6. 速度計測: `Time.timeScale=20` + NGO 有無の比較
+
+### Phase 2: RL ブリッジ (~3-5日)
+1. `BossRoomAgent.cs` — クラス別行動空間・共通観測・MA-POCA 対応
+2. `BossRoomGameManager.cs` — `SimpleMultiAgentGroup` + エピソードリセット + 報酬
+3. **学習専用ビルド** — NGO 除去した軽量版を `BuildForColab` で出力
+4. Training YAML — MA-POCA × 4 Behavior + curriculum
+5. Stage 0 で最小学習ループの動作確認
+
+### Phase 3: 学習 (~1-2週間, Colab)
+1. Stage 0-2 のカリキュラム学習
+2. 各 Stage の結果を `RunArchive/` に保存
+3. ボス撃破成功の確認
+
+### Phase 4: 録画 (~2-3日)
+1. NGO 有効のフルビジュアル版シーンに .onnx インポート
+2. カメラ配置（Cinemachine）
+3. 学習過程比較クリップ + 最終ボス戦の撮影
+
+---
+
+## 7. リスクと緩和策
+
+| リスク | 影響 | 緩和策 |
+|--------|------|--------|
+| NGO が高速シミュレーションのボトルネック | 学習速度低下 | Phase 1 で計測。問題なら `TickRate` 調整 or 学習時 NGO スキップモード |
+| VContainer 導入で既存コードに副作用 | 他シナリオ破壊 | VContainer は BossRoom assembly のみ参照、他シナリオは触らない |
+| Boss Room コードの UGS 参照が散在 | コンパイルエラー | 取り込まないコードから参照を辿り、stub / #if で隔離 |
+| 4ポリシー同時学習で計算量増大 | 学習時間増 | 並列環境×8 + DecisionPeriod=5 で相殺 |
+| ダンジョン全体が学習に長すぎる | 非現実的 | **アリーナ方式に切替済み** |
+
+---
+
+## 8. Verification Plan
+
+### 自動検証
+- 取り込み後 `Console` エラーゼロ
+- `RLMovie > Validate Current Scenario` 通過
+- `RLMovie > Build for Colab` 成功
+
+### 手動検証
+- Unity Play → Host → キャラ表示・Imp 動作を目視
+- `Time.timeScale=20` で挙動に異常がないか確認
+- `mlagents-learn` 短時間実行 → 4 エージェント同時動作・リセット確認
+- [RecordingHelper](file:///c:/rl-movie/AI-RL-Movie/Assets/_RLMovie/Common/Editor/ScenarioValidator.cs#700-758) で 10 秒録画 → 映像出力確認
