@@ -63,3 +63,6 @@ AI-RL-Movie/ColabBuilds/
 # Third Party Assets (too large for git)
 AI-RL-Movie/Assets/ThirdParty/
 AI-RL-Movie/Assets/ThirdParty.meta
+
+AGENTS.md
+GEMINI.md
